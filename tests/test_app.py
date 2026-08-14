@@ -31,3 +31,8 @@ def test_index_links_to_both_control_areas():
     assert "委託先管理" in response.text
     assert "/education" in response.text
     assert "/vendors" in response.text
+
+
+def test_index_links_to_setup():
+    response = client.get("/")
+    assert "/setup" in response.text

@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from app import demo_state, vendor_demo_state
+from app import demo_state, intake_demo_state, vendor_demo_state
 from app.education import evaluate_training
 from app.education_routes import router as education_router
+from app.intake_routes import router as intake_router
 from app.schemas import EducationEvaluationStatus
 from app.vendor_routes import router as vendor_router
 from app.vendor_schemas import VendorEvaluationStatus
@@ -12,6 +13,7 @@ from app.vendors import evaluate_vendors
 APP_NAME = "Pマーク取得・運用支援ツール MVP"
 
 app = FastAPI(title=APP_NAME)
+app.include_router(intake_router)
 app.include_router(education_router)
 app.include_router(vendor_router)
 
@@ -23,6 +25,10 @@ def health() -> dict[str, str]:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
+    intake_state = intake_demo_state.get_state()
+    setup_status_label = "完了" if intake_demo_state.is_setup_complete(intake_state) else "設定中"
+    setup_status_class = "compliant" if setup_status_label == "完了" else "needs-action"
+
     education_state = demo_state.get_state()
     education_result = evaluate_training(
         education_state.employees,
@@ -55,7 +61,7 @@ def index() -> str:
   <style>
     body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 700px; }}
     .control-card {{ border: 1px solid #ccc; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }}
-    .control-card h2 {{ margin-top: 0; }}
+    .control-card h3 {{ margin-top: 0; }}
     .status-badge {{ display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; }}
     .status-badge.needs-action {{ background: #b30000; color: #fff; }}
     .status-badge.compliant {{ background: #0a7a0a; color: #fff; }}
@@ -65,14 +71,22 @@ def index() -> str:
   <h1>{APP_NAME}</h1>
   <p>現在はプロトタイプ開発中です。</p>
 
+  <h2>Pマーク準備状況</h2>
+
   <div class="control-card">
-    <h2>教育管理</h2>
+    <h3>初期設定</h3>
+    <p>状態：<span class="status-badge {setup_status_class}">{setup_status_label}</span></p>
+    <p><a href="/setup">確認する</a></p>
+  </div>
+
+  <div class="control-card">
+    <h3>教育管理</h3>
     <p>状態：<span class="status-badge {education_status_class}">{education_result.status.value}</span></p>
     <p><a href="/education">確認する</a></p>
   </div>
 
   <div class="control-card">
-    <h2>委託先管理</h2>
+    <h3>委託先管理</h3>
     <p>状態：<span class="status-badge {vendor_status_class}">{vendor_result.status.value}</span></p>
     <p><a href="/vendors">確認する</a></p>
   </div>

@@ -1,0 +1,69 @@
+"""intakeフロー（業務ヒアリング〜管理策候補提示）のFastAPIルーティング。
+
+HTTP処理（リクエスト受付・リダイレクト）のみを担当する。
+事実・候補データの更新は app.intake_demo_state に、候補生成・再計算ロジックは
+app.intake に委譲し、ここでは業務判定を行わない。
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+from app import intake_demo_state
+from app.intake_schemas import QuestionnaireAnswers
+from app.intake_view import render_setup_page
+
+router = APIRouter(prefix="/setup", tags=["setup"])
+
+
+def _render_current_page() -> str:
+    state = intake_demo_state.get_state()
+    return render_setup_page(state)
+
+
+@router.get("", response_class=HTMLResponse)
+def setup_page() -> str:
+    return _render_current_page()
+
+
+@router.post("/answers")
+async def submit_answers(request: Request) -> RedirectResponse:
+    form = await request.form()
+    values = {field: form.get(field) == "yes" for field, _ in intake_demo_state.QUESTIONS}
+    answers = QuestionnaireAnswers(**values)
+    intake_demo_state.submit_answers(answers)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/candidates/{candidate_id}/confirm")
+def confirm_candidate(candidate_id: int) -> RedirectResponse:
+    intake_demo_state.confirm_candidate(candidate_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/candidates/{candidate_id}/exclude")
+def exclude_candidate(candidate_id: int) -> RedirectResponse:
+    intake_demo_state.exclude_candidate(candidate_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/controls/{control_id}/adopt")
+def adopt_control(control_id: str) -> RedirectResponse:
+    intake_demo_state.adopt_control(control_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/controls/{control_id}/not-applicable")
+def mark_control_not_applicable(control_id: str, reason: str = Form(...)) -> RedirectResponse:
+    reason = reason.strip()
+    if reason:
+        # 非適用の理由は必須とする。空欄の場合は状態を変更せず、そのまま画面に戻す。
+        intake_demo_state.mark_control_not_applicable(control_id, reason)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/reset")
+def reset() -> RedirectResponse:
+    intake_demo_state.reset_state()
+    return RedirectResponse(url="/setup", status_code=303)
