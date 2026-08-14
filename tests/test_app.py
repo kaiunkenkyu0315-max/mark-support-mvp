@@ -23,3 +23,11 @@ def test_index_returns_200():
 def test_index_contains_app_name():
     response = client.get("/")
     assert APP_NAME in response.text
+
+
+def test_index_links_to_both_control_areas():
+    response = client.get("/")
+    assert "教育管理" in response.text
+    assert "委託先管理" in response.text
+    assert "/education" in response.text
+    assert "/vendors" in response.text
