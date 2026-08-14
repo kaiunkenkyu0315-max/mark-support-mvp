@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
+from app.education_routes import router as education_router
+
 APP_NAME = "Pマーク取得・運用支援ツール MVP"
 
 app = FastAPI(title=APP_NAME)
+app.include_router(education_router)
 
 
 @app.get("/health")
@@ -23,6 +26,7 @@ def index() -> str:
   <h1>{APP_NAME}</h1>
   <p>現在はプロトタイプ開発中です。</p>
   <p>最初の対象機能は「教育管理」です。</p>
+  <p><a href="/education">教育管理デモを見る</a></p>
 </body>
 </html>
 """
