@@ -75,6 +75,7 @@ def index() -> str:
 
   <div class="control-card">
     <h3>初期設定</h3>
+    <p>業務ヒアリング・個人情報の確認・リスク確認・管理策の採用判断をまとめて行います。</p>
     <p>状態：<span class="status-badge {setup_status_class}">{setup_status_label}</span></p>
     <p><a href="/setup">確認する</a></p>
   </div>

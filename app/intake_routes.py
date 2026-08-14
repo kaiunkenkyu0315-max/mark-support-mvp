@@ -1,8 +1,9 @@
-"""intakeフロー（業務ヒアリング〜管理策候補提示）のFastAPIルーティング。
+"""intakeフロー（業務ヒアリング〜個人情報確認〜リスクアセスメント〜管理策候補提示）
+のFastAPIルーティング。
 
 HTTP処理（リクエスト受付・リダイレクト）のみを担当する。
 事実・候補データの更新は app.intake_demo_state に、候補生成・再計算ロジックは
-app.intake に委譲し、ここでは業務判定を行わない。
+app.intake / app.risk に委譲し、ここでは業務判定を行わない。
 """
 
 from __future__ import annotations
@@ -45,6 +46,26 @@ def confirm_candidate(candidate_id: int) -> RedirectResponse:
 @router.post("/candidates/{candidate_id}/exclude")
 def exclude_candidate(candidate_id: int) -> RedirectResponse:
     intake_demo_state.exclude_candidate(candidate_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/risks/{risk_candidate_id}/confirm")
+def confirm_risk(risk_candidate_id: int) -> RedirectResponse:
+    intake_demo_state.confirm_risk(risk_candidate_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/risks/{risk_candidate_id}/exclude")
+def exclude_risk(risk_candidate_id: int) -> RedirectResponse:
+    intake_demo_state.exclude_risk(risk_candidate_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/risks/{risk_candidate_id}/evaluate")
+def update_risk_evaluation(
+    risk_candidate_id: int, impact: int = Form(...), likelihood: int = Form(...)
+) -> RedirectResponse:
+    intake_demo_state.update_risk_evaluation(risk_candidate_id, impact, likelihood)
     return RedirectResponse(url="/setup", status_code=303)
 
 

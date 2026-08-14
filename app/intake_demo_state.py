@@ -1,10 +1,11 @@
-"""intakeフロー（業務ヒアリング〜管理策候補提示）のデモ用インメモリ状態。
+"""intakeフロー（業務ヒアリング〜管理策候補提示〜簡易リスクアセスメント）の
+デモ用インメモリ状態。
 
 サーバー起動時は「未回答」状態で始まる。利用者がSTEP1の質問に回答して
-保存すると、候補生成ロジック（app.intake）を実行して個人情報候補・
-管理策候補を用意する。ブラウザからの「回答保存」「確認」「採用」「非適用」
-操作は、このモジュールが保持するインメモリ状態のみを変更する。
-DBは使用せず、サーバー再起動で未回答の初期状態に戻る。
+保存すると、候補生成ロジック（app.intake, app.risk）を実行して個人情報候補・
+リスク候補・管理策候補を用意する。ブラウザからの「回答保存」「確認」「採用」
+「非適用」「評価変更」操作は、このモジュールが保持するインメモリ状態のみを
+変更する。DBは使用せず、サーバー再起動で未回答の初期状態に戻る。
 
 事実（QuestionnaireAnswers）・候補（status=candidate/suggested）・
 確定（status=confirmed/adopted/not_applicable）を混同しない。
@@ -26,6 +27,8 @@ from app.intake_schemas import (
     PersonalInformationCandidateStatus,
     QuestionnaireAnswers,
 )
+from app.risk import merge_risk_candidates_after_change
+from app.risk_schemas import RiskCandidate, RiskCandidateStatus
 
 # 業務ヒアリングの質問文（利用者向け表示用・フォームのfield名と対応）。
 QUESTIONS: list[tuple[str, str]] = [
@@ -45,12 +48,17 @@ QUESTIONS: list[tuple[str, str]] = [
     ("allows_remote_access", "在宅勤務または社外から個人情報へアクセスしますか？"),
 ]
 
+# impact/likelihoodが取り得る範囲（1=低〜3=高）。
+_EVALUATION_MIN = 1
+_EVALUATION_MAX = 3
+
 
 @dataclass
 class IntakeDemoState:
     answers: QuestionnaireAnswers
     answers_submitted: bool
     candidates: list[PersonalInformationCandidate]
+    risks: list[RiskCandidate]
     control_suggestions: list[ControlSuggestion]
 
 
@@ -61,6 +69,7 @@ def build_initial_state() -> IntakeDemoState:
         answers=QuestionnaireAnswers(),
         answers_submitted=False,
         candidates=[],
+        risks=[],
         control_suggestions=[],
     )
 
@@ -75,7 +84,7 @@ def get_state() -> IntakeDemoState:
 
 
 def reset_state() -> IntakeDemoState:
-    """デモ状態を未回答の初期状態へ戻す。"""
+    """デモ状態を未回答の初期状態へ戻す（個人情報・リスク・管理策の状態も含む）。"""
 
     global _state
     _state = build_initial_state()
@@ -97,8 +106,14 @@ def is_setup_complete(state: IntakeDemoState) -> bool:
     )
 
 
+def _recalculate_risks() -> None:
+    _state.risks = merge_risk_candidates_after_change(
+        _state.risks, _state.answers, _state.candidates
+    )
+
+
 def submit_answers(answers: QuestionnaireAnswers) -> None:
-    """業務ヒアリングの回答を保存し、個人情報候補・管理策候補を再計算する。
+    """業務ヒアリングの回答を保存し、個人情報候補・リスク候補・管理策候補を再計算する。
 
     既存の確認・採用・非適用の判断は、回答変更後も前提が成立する限り維持する。
     """
@@ -109,6 +124,7 @@ def submit_answers(answers: QuestionnaireAnswers) -> None:
     _state.control_suggestions = merge_control_suggestions_after_answers_change(
         _state.control_suggestions, answers
     )
+    _recalculate_risks()
 
 
 def confirm_candidate(candidate_id: int) -> None:
@@ -118,6 +134,7 @@ def confirm_candidate(candidate_id: int) -> None:
         if candidate.id == candidate_id:
             candidate.status = PersonalInformationCandidateStatus.CONFIRMED
             candidate.needs_review = False
+    _recalculate_risks()
 
 
 def exclude_candidate(candidate_id: int) -> None:
@@ -127,6 +144,36 @@ def exclude_candidate(candidate_id: int) -> None:
         if candidate.id == candidate_id:
             candidate.status = PersonalInformationCandidateStatus.EXCLUDED
             candidate.needs_review = False
+    _recalculate_risks()
+
+
+def confirm_risk(risk_candidate_id: int) -> None:
+    """リスク候補について、利用者が「該当する」と確認する。"""
+
+    for risk in _state.risks:
+        if risk.id == risk_candidate_id:
+            risk.status = RiskCandidateStatus.CONFIRMED
+            risk.needs_review = False
+
+
+def exclude_risk(risk_candidate_id: int) -> None:
+    """リスク候補について、利用者が「該当しない」と判断する。"""
+
+    for risk in _state.risks:
+        if risk.id == risk_candidate_id:
+            risk.status = RiskCandidateStatus.EXCLUDED
+            risk.needs_review = False
+
+
+def update_risk_evaluation(risk_candidate_id: int, impact: int, likelihood: int) -> None:
+    """confirmedなリスクの影響度・発生可能性を、利用者が変更する。"""
+
+    impact = max(_EVALUATION_MIN, min(_EVALUATION_MAX, impact))
+    likelihood = max(_EVALUATION_MIN, min(_EVALUATION_MAX, likelihood))
+    for risk in _state.risks:
+        if risk.id == risk_candidate_id:
+            risk.impact = impact
+            risk.likelihood = likelihood
 
 
 def adopt_control(control_id: str) -> None:

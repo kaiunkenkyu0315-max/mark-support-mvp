@@ -1,9 +1,10 @@
-"""intakeフロー（業務ヒアリング〜管理策候補提示）のHTML描画。
+"""intakeフロー（業務ヒアリング〜個人情報確認〜リスクアセスメント〜管理策候補提示）
+のHTML描画。
 
-ここでは業務判定（候補生成・管理策提示・回答変更時の再計算ルール）を
+ここでは業務判定（候補生成・管理策提示・リスク評価・回答変更時の再計算ルール）を
 一切行わない。app.intake_demo_state が保持する事実・候補・確定状態を
-そのまま表示するだけとする。UI側に「従業員あり→教育管理」のような
-判定を書かない。
+そのまま表示するだけとする。UI側に「従業員あり→教育管理」「紙保管あり→紙媒体リスク」
+のような判定を書かない。
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ from app.intake_schemas import (
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
 )
+from app.risk import CONTROL_RELATED_RISK_IDS, confirmed_risk_reasons_for_control, evaluate_risk
+from app.risk_schemas import RiskCandidate, RiskCandidateStatus, RiskLevel
 
 QUESTION_LABELS = dict(QUESTIONS)
 
@@ -30,6 +33,20 @@ CONTROL_STATUS_LABELS = {
     ControlDecisionStatus.NOT_APPLICABLE: "非適用",
 }
 
+RISK_STATUS_LABELS = {
+    RiskCandidateStatus.CANDIDATE: "未確認（候補）",
+    RiskCandidateStatus.CONFIRMED: "確認済み",
+    RiskCandidateStatus.EXCLUDED: "除外（該当しない）",
+}
+
+RISK_LEVEL_CSS_CLASS = {
+    RiskLevel.LOW: "risk-low",
+    RiskLevel.MEDIUM: "risk-medium",
+    RiskLevel.HIGH: "risk-high",
+}
+
+EVALUATION_SCALE_LABELS = {1: "1（低）", 2: "2（中）", 3: "3（高）"}
+
 # 採用済み管理策から、既存MVPへの導線ボタン文言。
 CONTROL_LINK_LABELS = {
     "education": "教育管理へ進む",
@@ -40,11 +57,17 @@ STEPPER = [
     "STEP1 業務情報",
     "STEP2 個人情報候補",
     "STEP3 個人情報確認",
-    "STEP4 管理策確認",
-    "STEP5 運用開始",
+    "STEP4 リスク確認",
+    "STEP5 管理策確認",
+    "STEP6 運用開始",
 ]
 
 NEEDS_REVIEW_NOTE = "回答内容が変更されたため、再確認をおすすめします。"
+
+RISK_LEVEL_DISCLAIMER = (
+    "リスクレベルは、事故の発生・法令違反・Pマーク取得可否を意味するものではありません。"
+    "あくまで優先的に対策を検討する目安です。"
+)
 
 
 def _escape(text: str) -> str:
@@ -216,7 +239,126 @@ def _render_ledger_section(state: IntakeDemoState) -> str:
 
 
 # ---------------------------------------------------------------------------
-# STEP 4: 管理策確認
+# STEP 4: リスク確認
+# ---------------------------------------------------------------------------
+
+
+def _related_personal_information_names(state: IntakeDemoState, risk: RiskCandidate) -> list[str]:
+    candidates_by_key = {candidate.source_key: candidate for candidate in state.candidates}
+    return [
+        candidates_by_key[key].name
+        for key in risk.related_personal_information_keys
+        if key in candidates_by_key
+    ]
+
+
+def _render_risk_evaluation_block(risk: RiskCandidate) -> str:
+    evaluation = evaluate_risk(risk)
+    level_class = RISK_LEVEL_CSS_CLASS[evaluation.level]
+
+    impact_options = "".join(
+        f'<option value="{value}"{" selected" if value == risk.impact else ""}>{label}</option>'
+        for value, label in EVALUATION_SCALE_LABELS.items()
+    )
+    likelihood_options = "".join(
+        f'<option value="{value}"{" selected" if value == risk.likelihood else ""}>{label}</option>'
+        for value, label in EVALUATION_SCALE_LABELS.items()
+    )
+
+    return f"""
+    <div class="risk-evaluation">
+      <p>システム初期案：影響度 {EVALUATION_SCALE_LABELS[risk.suggested_impact]}／発生可能性 {EVALUATION_SCALE_LABELS[risk.suggested_likelihood]}</p>
+      <p class="risk-badge {level_class}">最終評価：影響度{risk.impact}×発生可能性{risk.likelihood}＝{evaluation.score}（{evaluation.level.value}）</p>
+      <form method="post" action="/setup/risks/{risk.id}/evaluate">
+        <label>影響度
+          <select name="impact">{impact_options}</select>
+        </label>
+        <label>発生可能性
+          <select name="likelihood">{likelihood_options}</select>
+        </label>
+        <button type="submit">評価を更新する</button>
+      </form>
+    </div>
+    """
+
+
+def _render_risk_item(state: IntakeDemoState, risk: RiskCandidate) -> str:
+    status_label = RISK_STATUS_LABELS[risk.status]
+    related_names = _related_personal_information_names(state, risk)
+    related_html = (
+        f"<p class=\"risk-related\">関連する個人情報：{'、'.join(_escape(name) for name in related_names)}</p>"
+        if related_names
+        else ""
+    )
+    review_note = f'<p class="needs-review">⚠ {NEEDS_REVIEW_NOTE}</p>' if risk.needs_review else ""
+
+    if risk.status == RiskCandidateStatus.CANDIDATE or risk.needs_review:
+        actions_html = f"""
+        <form method="post" action="/setup/risks/{risk.id}/confirm">
+          <button type="submit">このリスクを確認する</button>
+        </form>
+        <form method="post" action="/setup/risks/{risk.id}/exclude">
+          <button type="submit">該当しない</button>
+        </form>
+        """
+    elif risk.status == RiskCandidateStatus.CONFIRMED:
+        actions_html = _render_risk_evaluation_block(risk)
+    else:
+        actions_html = ""
+
+    return f"""
+    <li class="risk-item">
+      <p class="risk-name">{_escape(risk.name)}（{status_label}）</p>
+      <p class="risk-description">{_escape(risk.description)}</p>
+      <p class="risk-reason">候補となった理由：{_escape(risk.reason)}</p>
+      {related_html}
+      {review_note}
+      {actions_html}
+    </li>
+    """
+
+
+def _render_step4_risks(state: IntakeDemoState) -> str:
+    confirmed_pi_count = sum(
+        1
+        for candidate in state.candidates
+        if candidate.status == PersonalInformationCandidateStatus.CONFIRMED
+    )
+    confirmed_risks = [risk for risk in state.risks if risk.status == RiskCandidateStatus.CONFIRMED]
+    high_risk_count = sum(
+        1 for risk in confirmed_risks if evaluate_risk(risk).level == RiskLevel.HIGH
+    )
+
+    summary = f"""
+    <ul class="risk-summary">
+      <li>確認済み個人情報：{confirmed_pi_count}件</li>
+      <li>リスク候補：{len(state.risks)}件</li>
+      <li>確認済みリスク：{len(confirmed_risks)}件</li>
+      <li>高リスク：{high_risk_count}件</li>
+    </ul>
+    <p class="risk-disclaimer">{RISK_LEVEL_DISCLAIMER}</p>
+    """
+
+    if not state.answers_submitted:
+        body = "<p>STEP1に回答すると、ここでリスク候補を確認できるようになります。</p>"
+    elif not state.risks:
+        body = "<p>現在の回答・確認済み個人情報からは、該当するリスク候補はありません。</p>"
+    else:
+        rows = "".join(_render_risk_item(state, risk) for risk in state.risks)
+        body = f'<ul class="risk-list">{rows}</ul>'
+
+    return f"""
+    <section class="step">
+      <h2>STEP 4　リスク確認</h2>
+      <p>確認済みの個人情報・業務内容から、想定されるリスクの候補です。内容を確認し、実際に該当するかどうかを判断してください。</p>
+      {summary}
+      {body}
+    </section>
+    """
+
+
+# ---------------------------------------------------------------------------
+# STEP 5: 管理策確認
 # ---------------------------------------------------------------------------
 
 
@@ -243,6 +385,11 @@ def _render_control_item(state: IntakeDemoState, suggestion: ControlSuggestion) 
     )
     review_note = f'<p class="needs-review">⚠ {NEEDS_REVIEW_NOTE}</p>' if suggestion.needs_review else ""
 
+    confirmed_risks = [risk for risk in state.risks if risk.status == RiskCandidateStatus.CONFIRMED]
+    risk_reasons = confirmed_risk_reasons_for_control(suggestion.control_id, confirmed_risks)
+    reason_items = "".join(f"<li>{_escape(text)}</li>" for text in [suggestion.reason, *risk_reasons])
+    reason_html = f'<p class="control-reason">提示理由：</p><ul class="control-reason-list">{reason_items}</ul>'
+
     if suggestion.status == ControlDecisionStatus.SUGGESTED:
         actions_html = f"""
         <form method="post" action="/setup/controls/{suggestion.control_id}/adopt">
@@ -265,7 +412,7 @@ def _render_control_item(state: IntakeDemoState, suggestion: ControlSuggestion) 
     return f"""
     <li class="control-item">
       <p class="control-name">{_escape(suggestion.name)}（{status_label}）</p>
-      <p class="control-reason">提示理由：{_escape(suggestion.reason)}</p>
+      {reason_html}
       {related_html}
       {review_note}
       {actions_html}
@@ -273,7 +420,25 @@ def _render_control_item(state: IntakeDemoState, suggestion: ControlSuggestion) 
     """
 
 
-def _render_step4_controls(state: IntakeDemoState) -> str:
+def _render_unmapped_risk_note(state: IntakeDemoState) -> str:
+    mapped_risk_ids = {
+        risk_id for ids in CONTROL_RELATED_RISK_IDS.values() for risk_id in ids
+    }
+    confirmed_unmapped = [
+        risk
+        for risk in state.risks
+        if risk.status == RiskCandidateStatus.CONFIRMED and risk.risk_id not in mapped_risk_ids
+    ]
+    if not confirmed_unmapped:
+        return ""
+    names = "、".join(_escape(risk.name) for risk in confirmed_unmapped)
+    return (
+        f'<p class="control-unmapped-note">{names}については、今回のMVPでは対応する管理策を'
+        "実装していません（関連する管理策は今後追加予定です）。</p>"
+    )
+
+
+def _render_step5_controls(state: IntakeDemoState) -> str:
     if not state.answers_submitted:
         body = "<p>STEP1に回答すると、ここで管理策候補を確認できるようになります。</p>"
     elif not state.control_suggestions:
@@ -286,19 +451,20 @@ def _render_step4_controls(state: IntakeDemoState) -> str:
 
     return f"""
     <section class="step">
-      <h2>STEP 4　管理策確認</h2>
-      <p>確認した業務・個人情報の内容から、必要になり得る管理策候補です。採用するか、非適用にするかを判断してください。</p>
+      <h2>STEP 5　管理策確認</h2>
+      <p>確認した業務・個人情報・リスクの内容から、必要になり得る管理策候補です。採用するか、非適用にするかを判断してください。</p>
       {body}
+      {_render_unmapped_risk_note(state)}
     </section>
     """
 
 
 # ---------------------------------------------------------------------------
-# STEP 5: 運用開始
+# STEP 6: 運用開始
 # ---------------------------------------------------------------------------
 
 
-def _render_step5_summary(state: IntakeDemoState) -> str:
+def _render_step6_summary(state: IntakeDemoState) -> str:
     adopted = [
         suggestion
         for suggestion in state.control_suggestions
@@ -306,7 +472,7 @@ def _render_step5_summary(state: IntakeDemoState) -> str:
     ]
 
     if not adopted:
-        body = "<p>採用した管理策はまだありません。STEP4で管理策を採用すると、ここに運用画面への導線が表示されます。</p>"
+        body = "<p>採用した管理策はまだありません。STEP5で管理策を採用すると、ここに運用画面への導線が表示されます。</p>"
     else:
         links = "".join(
             f'<li><a href="{suggestion.link_url}">{_escape(CONTROL_LINK_LABELS.get(suggestion.control_id, suggestion.name))}</a></li>'
@@ -317,7 +483,7 @@ def _render_step5_summary(state: IntakeDemoState) -> str:
 
     return f"""
     <section class="step">
-      <h2>STEP 5　運用開始</h2>
+      <h2>STEP 6　運用開始</h2>
       {body}
     </section>
     """
@@ -359,20 +525,33 @@ def render_setup_page(state: IntakeDemoState) -> str:
     .question {{ margin-bottom: 0.75rem; }}
     .question p {{ margin: 0 0 0.3rem; font-weight: bold; }}
     .question label {{ margin-right: 1rem; }}
-    .candidate-list, .control-list {{ list-style: none; margin: 0; padding: 0; }}
-    .candidate-item, .control-item {{
+    .candidate-list, .control-list, .risk-list {{ list-style: none; margin: 0; padding: 0; }}
+    .candidate-item, .control-item, .risk-item {{
       padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-radius: 4px;
       background: #f5f5f5; border-left: 4px solid #888;
     }}
-    .candidate-name, .control-name {{ font-weight: bold; margin: 0 0 0.3rem; }}
-    .candidate-reason, .control-reason, .control-related {{ margin: 0 0 0.5rem; color: #555; }}
-    .non-applicable-reason {{ margin: 0; color: #555; }}
+    .candidate-name, .control-name, .risk-name {{ font-weight: bold; margin: 0 0 0.3rem; }}
+    .candidate-reason, .control-reason, .control-related,
+    .risk-description, .risk-reason, .risk-related {{ margin: 0 0 0.5rem; color: #555; }}
+    .control-reason-list {{ margin: 0 0 0.5rem; padding-left: 1.2rem; color: #555; }}
+    .non-applicable-reason, .control-unmapped-note {{ margin: 0; color: #555; }}
     .needs-review {{ margin: 0 0 0.5rem; color: #a15c00; font-weight: bold; }}
     form {{ display: inline-block; margin: 0 0.5rem 0.5rem 0; }}
     .not-applicable-form input[type="text"] {{ margin-right: 0.3rem; }}
     .records-table {{ border-collapse: collapse; }}
     .records-table th, .records-table td {{ text-align: left; border: 1px solid #ccc; padding: 4px 8px; }}
     .next-links {{ padding-left: 1.2rem; font-size: 1.1rem; }}
+    .risk-summary {{ display: flex; flex-wrap: wrap; gap: 1rem; padding: 0; margin: 0.5rem 0; list-style: none; }}
+    .risk-summary li {{
+      background: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; padding: 0.3rem 0.7rem;
+    }}
+    .risk-disclaimer {{ font-size: 0.85rem; color: #777; margin: 0 0 1rem; }}
+    .risk-evaluation {{ margin-top: 0.5rem; }}
+    .risk-evaluation select {{ margin: 0 0.5rem; }}
+    .risk-badge {{ display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: bold; }}
+    .risk-badge.risk-low {{ background: #e6f4ea; color: #0a7a0a; }}
+    .risk-badge.risk-medium {{ background: #fff4e0; color: #a15c00; }}
+    .risk-badge.risk-high {{ background: #fdeaea; color: #b30000; }}
   </style>
 </head>
 <body>
@@ -386,8 +565,9 @@ def render_setup_page(state: IntakeDemoState) -> str:
   {_render_step2_candidates(state)}
   {_render_step3_confirmation(state)}
   {_render_ledger_section(state)}
-  {_render_step4_controls(state)}
-  {_render_step5_summary(state)}
+  {_render_step4_risks(state)}
+  {_render_step5_controls(state)}
+  {_render_step6_summary(state)}
   {_render_reset_section()}
 </body>
 </html>
