@@ -55,6 +55,25 @@ def test_initial_state_shows_all_four_issue_rules():
         assert rule_id in response.text
 
 
+def test_initial_state_shows_issue_count_and_todo_list():
+    response = client.get("/education")
+
+    assert "対応が必要な項目：4件" in response.text
+    assert "今やること" in response.text
+    assert "未受講者がいます" in response.text
+    assert "一般従業員49" in response.text
+    assert "一般従業員50" in response.text
+
+
+def test_todo_items_include_their_action_buttons():
+    response = client.get("/education")
+
+    assert "未受講者を受講済みにする" in response.text
+    assert "理解度確認結果を登録する（合格）" in response.text
+    assert "教材記録を登録する" in response.text
+    assert "承認する" in response.text
+
+
 def test_resolving_all_issues_results_in_compliant():
     client.post("/education/actions/complete-trainings")
     client.post("/education/actions/register-comprehension")
