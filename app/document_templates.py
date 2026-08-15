@@ -12,9 +12,11 @@ app.vendor_schemas / app.intake_schemas のモデル）をそのまま参照す�
 
 from __future__ import annotations
 
+from app.access_control_schemas import AccessControl, AccessReviewCycle
 from app.document_schemas import DocumentSection, DocumentTable
 from app.education import ROLE_LABELS, frequency_label
 from app.intake_schemas import PersonalInformationCandidate
+from app.paper_schemas import PaperControl, PaperMediaStatus
 from app.schemas import Company, TrainingControl, TrainingPlan
 from app.vendor_schemas import VendorControl
 from app.vendors import assessment_frequency_label
@@ -231,6 +233,134 @@ def build_vendor_procedure_sections(
             paragraphs=[
                 "評価の結果、個人情報の取扱いに問題が確認された委託先については、"
                 "改善を求め、改善が認められない場合は委託の見直しを行う。"
+            ],
+        ),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# アクセス権限管理手順
+# ---------------------------------------------------------------------------
+
+
+def build_access_control_procedure_sections(
+    company: Company, control: AccessControl, cycle: AccessReviewCycle
+) -> list[DocumentSection]:
+    """アクセス権限管理策の設定値から、アクセス権限管理手順文書の本文を組み立てる。"""
+
+    return [
+        DocumentSection(
+            heading="対象",
+            paragraphs=[
+                f"{company.name}が管理する情報システムの利用者アカウント及び"
+                "アクセス権限を対象とする。"
+            ],
+        ),
+        DocumentSection(
+            heading="アカウント付与",
+            paragraphs=[
+                "業務上の必要性を確認したうえで、必要最小限の範囲でアカウント及び"
+                "アクセス権限を付与する。"
+            ],
+        ),
+        DocumentSection(
+            heading="権限変更",
+            paragraphs=[
+                "異動等により担当業務が変更になった場合、速やかにアクセス権限の"
+                "見直しを行う。"
+            ],
+        ),
+        DocumentSection(
+            heading="定期確認",
+            paragraphs=[
+                "付与されているアカウント及びアクセス権限が適切かどうかを"
+                "定期的にレビューする。"
+                if control.review_required
+                else "権限レビューは必須としない。"
+            ],
+        ),
+        DocumentSection(
+            heading="退職・異動時対応",
+            paragraphs=[
+                "退職・異動等によりアクセスが不要になったアカウントは、"
+                "速やかに削除する。"
+            ],
+        ),
+        DocumentSection(
+            heading="記録",
+            paragraphs=[
+                "アカウントの確認・削除、権限レビューの実施結果を記録し保存する。"
+                + (
+                    "実施結果は承認を得るものとする。"
+                    if control.approval_required
+                    else "実施結果について、承認は必須としない。"
+                )
+            ],
+        ),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 紙媒体管理手順
+# ---------------------------------------------------------------------------
+
+
+def build_paper_management_procedure_sections(
+    company: Company, control: PaperControl, status: PaperMediaStatus
+) -> list[DocumentSection]:
+    """紙媒体管理策の設定値から、紙媒体管理手順文書の本文を組み立てる。"""
+
+    return [
+        DocumentSection(
+            heading="保管",
+            paragraphs=[
+                f"{company.name}は、個人情報が記載された紙媒体を、"
+                f"定められた保管場所（{_text_or_placeholder(status.storage_location)}）に保管する。"
+            ],
+        ),
+        DocumentSection(
+            heading="施錠",
+            paragraphs=[
+                "保管場所は施錠可能な場所とし、施錠管理の状況を確認する。"
+                if control.lock_check_required
+                else "施錠管理の確認は必須としない。"
+            ],
+        ),
+        DocumentSection(
+            heading="持出し",
+            paragraphs=[
+                "紙媒体を持ち出す場合は、定められた持出しルールに従う。"
+                if control.take_out_rule_required
+                else "持出しルールの設定は必須としない。"
+            ],
+        ),
+        DocumentSection(
+            heading="返却",
+            paragraphs=[
+                "持ち出した紙媒体は、業務終了後速やかに定められた保管場所へ返却する。"
+            ],
+        ),
+        DocumentSection(
+            heading="廃棄",
+            paragraphs=[
+                f"不要になった紙媒体は、定められた廃棄方法"
+                f"（{_text_or_placeholder(status.disposal_method)}）により廃棄する。"
+                + (
+                    "廃棄後は、廃棄が確実に行われたことを確認する。"
+                    if control.disposal_check_required
+                    else "廃棄確認は必須としない。"
+                )
+            ],
+        ),
+        DocumentSection(
+            heading="記録",
+            paragraphs=[
+                "保管・持出し・返却・廃棄の実施状況を記録し保存する。"
+                + (
+                    "実施結果は承認を得るものとする。"
+                    if control.approval_required
+                    else "実施結果について、承認は必須としない。"
+                )
             ],
         ),
     ]

@@ -15,7 +15,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from app import demo_state, intake_demo_state, vendor_demo_state
+from app import access_control_demo_state, demo_state, intake_demo_state, paper_demo_state, vendor_demo_state
 from app.document_schemas import Document
 from app.document_view import render_document_detail_page, render_document_list_page
 from app.documents import build_all_documents
@@ -29,6 +29,8 @@ def get_current_documents() -> list[Document]:
     intake_state = intake_demo_state.get_state()
     education_state = demo_state.get_state()
     vendor_state = vendor_demo_state.get_state()
+    access_control_state = access_control_demo_state.get_state()
+    paper_state = paper_demo_state.get_state()
 
     return build_all_documents(
         company=education_state.company,
@@ -37,6 +39,10 @@ def get_current_documents() -> list[Document]:
         education_control=education_state.control,
         education_plan=education_state.plan,
         vendor_control=vendor_state.control,
+        access_control=access_control_state.control,
+        access_review_cycle=access_control_state.cycle,
+        paper_control=paper_state.control,
+        paper_status=paper_state.status,
     )
 
 

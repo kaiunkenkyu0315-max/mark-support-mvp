@@ -11,6 +11,8 @@ from app.intake_schemas import (
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
 )
+from app.access_control_schemas import AccessControl, AccessReviewCycle
+from app.paper_schemas import PaperControl, PaperMediaStatus
 from app.schemas import Company, EmployeeRole, TrainingControl, TrainingFrequency, TrainingPlan
 from app.vendor_schemas import AssessmentFrequency, VendorControl
 
@@ -91,6 +93,47 @@ def make_vendor_control(**overrides):
     )
     defaults.update(overrides)
     return VendorControl(**defaults)
+
+
+def make_access_control(**overrides):
+    defaults = dict(id=1, name="アクセス権限管理", review_required=True, approval_required=True)
+    defaults.update(overrides)
+    return AccessControl(**defaults)
+
+
+def make_access_review_cycle(**overrides):
+    defaults = dict(id=1, control_id=1, review_completed=True, approved=True)
+    defaults.update(overrides)
+    return AccessReviewCycle(**defaults)
+
+
+def make_paper_control(**overrides):
+    defaults = dict(
+        id=1,
+        name="紙媒体の保管・持出し・廃棄管理",
+        lock_check_required=True,
+        take_out_rule_required=True,
+        disposal_check_required=True,
+        approval_required=True,
+    )
+    defaults.update(overrides)
+    return PaperControl(**defaults)
+
+
+def make_paper_status(**overrides):
+    defaults = dict(
+        id=1,
+        control_id=1,
+        handled_personal_information=["従業員人事ファイル（紙）"],
+        storage_location="鍵付きキャビネット",
+        storage_locked=True,
+        take_out_rule="持出し台帳に記録する。",
+        disposal_method="溶解処理",
+        disposal_confirmed=True,
+        approved=True,
+    )
+    defaults.update(overrides)
+    return PaperMediaStatus(**defaults)
 
 
 # --- 1. confirmed個人情報が台帳文書へ反映される ---
@@ -254,15 +297,25 @@ def test_documents_keep_related_control_ids():
         education_control=make_training_control(),
         education_plan=make_training_plan(),
         vendor_control=make_vendor_control(),
+        access_control=make_access_control(),
+        access_review_cycle=make_access_review_cycle(),
+        paper_control=make_paper_control(),
+        paper_status=make_paper_status(),
     )
 
     ledger = next(d for d in documents if d.document_type == DocumentType.PERSONAL_INFORMATION_LEDGER)
     education = next(d for d in documents if d.document_type == DocumentType.EDUCATION_PROCEDURE)
     vendor = next(d for d in documents if d.document_type == DocumentType.VENDOR_MANAGEMENT_PROCEDURE)
+    access_control_doc = next(
+        d for d in documents if d.document_type == DocumentType.ACCESS_CONTROL_PROCEDURE
+    )
+    paper_doc = next(d for d in documents if d.document_type == DocumentType.PAPER_MANAGEMENT_PROCEDURE)
 
     assert ledger.related_control_ids == []
     assert education.related_control_ids == ["education"]
     assert vendor.related_control_ids == ["vendor_management"]
+    assert access_control_doc.related_control_ids == ["access_control"]
+    assert paper_doc.related_control_ids == ["paper_management"]
 
 
 # --- 7. 元データ変更後にプレビュー内容も変化する ---

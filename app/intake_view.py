@@ -65,6 +65,8 @@ EVALUATION_SCALE_LABELS = {1: "1（低）", 2: "2（中）", 3: "3（高）"}
 CONTROL_LINK_LABELS = {
     "education": "教育管理へ進む",
     "vendor_management": "委託先管理へ進む",
+    "access_control": "アクセス権限管理へ進む",
+    "paper_management": "紙媒体管理へ進む",
 }
 
 STEPPER = [

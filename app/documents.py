@@ -12,10 +12,13 @@
 
 from __future__ import annotations
 
+from app.access_control_schemas import AccessControl, AccessReviewCycle
 from app.document_schemas import Document, DocumentStatus, DocumentType
 from app.document_templates import (
+    build_access_control_procedure_sections,
     build_education_procedure_sections,
     build_ledger_sections,
+    build_paper_management_procedure_sections,
     build_vendor_procedure_sections,
 )
 from app.intake import LEDGER_FIELD_LABELS, find_control_suggestion, missing_ledger_fields
@@ -25,14 +28,18 @@ from app.intake_schemas import (
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
 )
+from app.paper_schemas import PaperControl, PaperMediaStatus
 from app.schemas import Company, TrainingControl, TrainingPlan
 from app.vendor_schemas import VendorControl
 
-# 管理策IDに対する表示名。recommend_controls() が生成する ControlSuggestion.name と
-# 同じ名称を用いる（管理策候補が一度も生成されていない場合の文言表示にも使う）。
+# 管理策IDに対する表示名。recommend_controls() / recommend_controls_from_confirmed_risks()
+# が生成する ControlSuggestion.name と同じ名称を用いる（管理策候補が一度も生成されて
+# いない場合の文言表示にも使う）。
 CONTROL_NAME_LABELS: dict[str, str] = {
     "education": "個人情報保護教育",
     "vendor_management": "委託先管理",
+    "access_control": "アクセス権限管理",
+    "paper_management": "紙媒体の保管・持出し・廃棄管理",
 }
 
 
@@ -174,6 +181,76 @@ def build_vendor_procedure_document(
     )
 
 
+def build_access_control_procedure_document(
+    company: Company,
+    control_suggestions: list[ControlSuggestion],
+    control: AccessControl,
+    cycle: AccessReviewCycle,
+) -> Document:
+    """アクセス権限管理策がadoptedの場合のみ、アクセス権限管理手順の文書を組み立てる。
+
+    adoptedでない場合（未提示／suggested／not_applicable）は、正式な生成対象と
+    せず status=NOT_APPLICABLE とする。
+    """
+
+    suggestion = find_control_suggestion(control_suggestions, "access_control")
+    if suggestion is None or suggestion.status != ControlDecisionStatus.ADOPTED:
+        return Document(
+            document_id=DocumentType.ACCESS_CONTROL_PROCEDURE.value,
+            document_type=DocumentType.ACCESS_CONTROL_PROCEDURE,
+            title="アクセス権限管理手順",
+            related_control_ids=["access_control"],
+            status=DocumentStatus.NOT_APPLICABLE,
+            missing_fields=[_not_adopted_message("access_control", suggestion)],
+            sections=[],
+        )
+
+    return Document(
+        document_id=DocumentType.ACCESS_CONTROL_PROCEDURE.value,
+        document_type=DocumentType.ACCESS_CONTROL_PROCEDURE,
+        title="アクセス権限管理手順",
+        related_control_ids=["access_control"],
+        status=DocumentStatus.READY,
+        missing_fields=[],
+        sections=build_access_control_procedure_sections(company, control, cycle),
+    )
+
+
+def build_paper_management_procedure_document(
+    company: Company,
+    control_suggestions: list[ControlSuggestion],
+    control: PaperControl,
+    status: PaperMediaStatus,
+) -> Document:
+    """紙媒体管理策がadoptedの場合のみ、紙媒体管理手順の文書を組み立てる。
+
+    adoptedでない場合（未提示／suggested／not_applicable）は、正式な生成対象と
+    せず status=NOT_APPLICABLE とする。
+    """
+
+    suggestion = find_control_suggestion(control_suggestions, "paper_management")
+    if suggestion is None or suggestion.status != ControlDecisionStatus.ADOPTED:
+        return Document(
+            document_id=DocumentType.PAPER_MANAGEMENT_PROCEDURE.value,
+            document_type=DocumentType.PAPER_MANAGEMENT_PROCEDURE,
+            title="紙媒体管理手順",
+            related_control_ids=["paper_management"],
+            status=DocumentStatus.NOT_APPLICABLE,
+            missing_fields=[_not_adopted_message("paper_management", suggestion)],
+            sections=[],
+        )
+
+    return Document(
+        document_id=DocumentType.PAPER_MANAGEMENT_PROCEDURE.value,
+        document_type=DocumentType.PAPER_MANAGEMENT_PROCEDURE,
+        title="紙媒体管理手順",
+        related_control_ids=["paper_management"],
+        status=DocumentStatus.READY,
+        missing_fields=[],
+        sections=build_paper_management_procedure_sections(company, control, status),
+    )
+
+
 def build_all_documents(
     *,
     company: Company,
@@ -182,8 +259,12 @@ def build_all_documents(
     education_control: TrainingControl,
     education_plan: TrainingPlan,
     vendor_control: VendorControl,
+    access_control: AccessControl,
+    access_review_cycle: AccessReviewCycle,
+    paper_control: PaperControl,
+    paper_status: PaperMediaStatus,
 ) -> list[Document]:
-    """今回のMVPで扱う3種類の文書をすべて組み立てる。"""
+    """今回のMVPで扱う5種類の文書をすべて組み立てる。"""
 
     return [
         build_personal_information_ledger_document(company, candidates),
@@ -191,4 +272,10 @@ def build_all_documents(
             company, control_suggestions, education_control, education_plan
         ),
         build_vendor_procedure_document(company, control_suggestions, vendor_control),
+        build_access_control_procedure_document(
+            company, control_suggestions, access_control, access_review_cycle
+        ),
+        build_paper_management_procedure_document(
+            company, control_suggestions, paper_control, paper_status
+        ),
     ]

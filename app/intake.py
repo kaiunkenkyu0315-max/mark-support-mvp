@@ -293,19 +293,19 @@ def merge_candidates_after_answers_change(
     return merged
 
 
-def merge_control_suggestions_after_answers_change(
+def merge_control_suggestions(
     previous_suggestions: list[ControlSuggestion],
-    answers: QuestionnaireAnswers,
+    fresh_suggestions: list[ControlSuggestion],
 ) -> list[ControlSuggestion]:
-    """回答変更後、管理策候補を再計算する。
+    """管理策候補（新たに算出した提示内容）を、既存の利用者判断とつき合わせて統合する。
 
-    考え方は merge_candidates_after_answers_change と同じ。
     control_id が引き続き提示される場合は、利用者の採用・非適用判断を維持する。
     前提が失われても、すでに採用・非適用と判断されていたものは判断を消さず
-    needs_review=True として残す。
+    needs_review=True として残す。fresh_suggestions がどのように算出されたか
+    （業務ヒアリングの回答のみか、確認済みリスクも含むか等）は問わない、
+    汎用のつき合わせロジックとしてここに置く。
     """
 
-    fresh_suggestions = recommend_controls(answers)
     fresh_ids = {suggestion.control_id for suggestion in fresh_suggestions}
     previous_by_id = {suggestion.control_id: suggestion for suggestion in previous_suggestions}
 
@@ -334,3 +334,16 @@ def merge_control_suggestions_after_answers_change(
         merged.append(previous.model_copy(update={"needs_review": True}))
 
     return merged
+
+
+def merge_control_suggestions_after_answers_change(
+    previous_suggestions: list[ControlSuggestion],
+    answers: QuestionnaireAnswers,
+) -> list[ControlSuggestion]:
+    """回答変更後、業務ヒアリングの回答のみを根拠とする管理策候補を再計算する。
+
+    考え方は merge_candidates_after_answers_change と同じ。実際のつき合わせ処理は
+    merge_control_suggestions() に委譲する。
+    """
+
+    return merge_control_suggestions(previous_suggestions, recommend_controls(answers))

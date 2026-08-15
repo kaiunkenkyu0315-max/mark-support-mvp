@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from app.intake import (
     is_ledger_complete,
     merge_candidates_after_answers_change,
-    merge_control_suggestions_after_answers_change,
+    merge_control_suggestions,
+    recommend_controls,
 )
 from app.intake_schemas import (
     ControlDecisionStatus,
@@ -29,7 +30,7 @@ from app.intake_schemas import (
     QuestionnaireAnswers,
     SetupStatus,
 )
-from app.risk import merge_risk_candidates_after_change
+from app.risk import merge_risk_candidates_after_change, recommend_controls_from_confirmed_risks
 from app.risk_schemas import RiskCandidate, RiskCandidateStatus
 
 # 業務ヒアリングの質問文（利用者向け表示用・フォームのfield名と対応）。
@@ -127,10 +128,31 @@ def get_setup_status(state: IntakeDemoState) -> SetupStatus:
     return SetupStatus.COMPLETE
 
 
+def _recalculate_control_suggestions() -> None:
+    """管理策候補を再計算する。
+
+    候補生成の根拠は、業務ヒアリングの回答（recommend_controls）と、
+    確認済みリスク（recommend_controls_from_confirmed_risks）の2系統がある。
+    どちらも「候補を提示する」ところまでであり、採用可否の判断（正本）は
+    利用者操作を経て初めて確定する（merge_control_suggestions が、
+    既存の採用・非適用判断を維持したまま統合する）。
+    """
+
+    fresh_suggestions = recommend_controls(_state.answers) + recommend_controls_from_confirmed_risks(
+        _state.risks
+    )
+    _state.control_suggestions = merge_control_suggestions(
+        _state.control_suggestions, fresh_suggestions
+    )
+
+
 def _recalculate_risks() -> None:
     _state.risks = merge_risk_candidates_after_change(
         _state.risks, _state.answers, _state.candidates
     )
+    # RISK-001/RISK-002等、確認済みリスクを根拠に提示する管理策候補があるため、
+    # リスク再計算のたびに管理策候補も合わせて再計算する。
+    _recalculate_control_suggestions()
 
 
 def submit_answers(answers: QuestionnaireAnswers) -> None:
@@ -142,9 +164,6 @@ def submit_answers(answers: QuestionnaireAnswers) -> None:
     _state.answers = answers
     _state.answers_submitted = True
     _state.candidates = merge_candidates_after_answers_change(_state.candidates, answers)
-    _state.control_suggestions = merge_control_suggestions_after_answers_change(
-        _state.control_suggestions, answers
-    )
     _recalculate_risks()
 
 
@@ -206,6 +225,9 @@ def confirm_risk(risk_candidate_id: int) -> None:
         if risk.id == risk_candidate_id:
             risk.status = RiskCandidateStatus.CONFIRMED
             risk.needs_review = False
+    # リスク確認済みを根拠に提示される管理策候補（例：RISK-001→アクセス権限管理）が
+    # あるため、確認操作のたびに管理策候補を再計算する。
+    _recalculate_control_suggestions()
 
 
 def exclude_risk(risk_candidate_id: int) -> None:
@@ -215,6 +237,7 @@ def exclude_risk(risk_candidate_id: int) -> None:
         if risk.id == risk_candidate_id:
             risk.status = RiskCandidateStatus.EXCLUDED
             risk.needs_review = False
+    _recalculate_control_suggestions()
 
 
 def update_risk_evaluation(risk_candidate_id: int, impact: int, likelihood: int) -> None:

@@ -1,14 +1,21 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from app import demo_state, intake_demo_state, vendor_demo_state
+from app import access_control_demo_state, demo_state, intake_demo_state, paper_demo_state, vendor_demo_state
+from app.access_control import evaluate_access_control
+from app.access_control_routes import router as access_control_router
+from app.access_control_schemas import AccessEvaluationStatus
 from app.document_routes import get_current_documents
 from app.document_routes import router as document_router
 from app.document_schemas import DocumentStatus
 from app.education import evaluate_training
 from app.education_routes import router as education_router
+from app.intake import find_control_suggestion
 from app.intake_routes import router as intake_router
-from app.intake_schemas import SetupStatus
+from app.intake_schemas import ControlDecisionStatus, SetupStatus
+from app.paper import evaluate_paper_management
+from app.paper_routes import router as paper_router
+from app.paper_schemas import PaperEvaluationStatus
 from app.schemas import EducationEvaluationStatus
 from app.vendor_routes import router as vendor_router
 from app.vendor_schemas import VendorEvaluationStatus
@@ -32,7 +39,29 @@ app = FastAPI(title=APP_NAME)
 app.include_router(intake_router)
 app.include_router(education_router)
 app.include_router(vendor_router)
+app.include_router(access_control_router)
+app.include_router(paper_router)
 app.include_router(document_router)
+
+
+def _adoption_gated_status_badge(
+    control_id: str,
+    control_suggestions,
+    compliant: bool,
+) -> tuple[str, str]:
+    """未採用の管理策を「運用中」であるかのように表示しないための共通処理。
+
+    採用可否の正本（setupのControlSuggestion.status）を確認し、adoptedでなければ
+    運用状況（適合／要対応）を表示せず、「未採用」の中立なバッジを返す。
+    adoptedの場合のみ、実際の運用評価結果（compliant/要対応）を返す。
+    """
+
+    suggestion = find_control_suggestion(control_suggestions, control_id)
+    if suggestion is None or suggestion.status != ControlDecisionStatus.ADOPTED:
+        return "未採用", "not-started"
+    if compliant:
+        return "適合", "compliant"
+    return "要対応", "needs-action"
 
 
 @app.get("/health")
@@ -69,6 +98,26 @@ def index() -> str:
     )
     vendor_status_class = (
         "compliant" if vendor_result.status == VendorEvaluationStatus.COMPLIANT else "needs-action"
+    )
+
+    control_suggestions = intake_state.control_suggestions
+
+    access_control_state = access_control_demo_state.get_state()
+    access_control_result = evaluate_access_control(
+        access_control_state.accounts, access_control_state.control, access_control_state.cycle
+    )
+    access_control_status_label, access_control_status_class = _adoption_gated_status_badge(
+        "access_control",
+        control_suggestions,
+        access_control_result.status == AccessEvaluationStatus.COMPLIANT,
+    )
+
+    paper_state = paper_demo_state.get_state()
+    paper_result = evaluate_paper_management(paper_state.control, paper_state.status)
+    paper_status_label, paper_status_class = _adoption_gated_status_badge(
+        "paper_management",
+        control_suggestions,
+        paper_result.status == PaperEvaluationStatus.COMPLIANT,
     )
 
     documents = get_current_documents()
@@ -114,6 +163,18 @@ def index() -> str:
     <h3>委託先管理</h3>
     <p>状態：<span class="status-badge {vendor_status_class}">{vendor_result.status.value}</span></p>
     <p><a href="/vendors">確認する</a></p>
+  </div>
+
+  <div class="control-card">
+    <h3>アクセス権限管理</h3>
+    <p>状態：<span class="status-badge {access_control_status_class}">{access_control_status_label}</span></p>
+    <p><a href="/access-control">確認する</a></p>
+  </div>
+
+  <div class="control-card">
+    <h3>紙媒体管理</h3>
+    <p>状態：<span class="status-badge {paper_status_class}">{paper_status_label}</span></p>
+    <p><a href="/paper">確認する</a></p>
   </div>
 
   <div class="control-card">

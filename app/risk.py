@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from app.intake_schemas import (
+    ControlSuggestion,
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
     QuestionnaireAnswers,
@@ -31,11 +32,35 @@ LIKELIHOOD_LOW, LIKELIHOOD_MEDIUM, LIKELIHOOD_HIGH = 1, 2, 3
 _LOW_SCORE_MAX = 2
 _MEDIUM_SCORE_MAX = 5
 
-# 既存2管理策と、それぞれが関連するリスクIDの対応。
-# 「今回まだ対応管理策を本格実装しない」リスク（不正アクセス・紙媒体紛失）は含めない。
+# 4管理策と、それぞれが関連するリスクIDの対応。
 CONTROL_RELATED_RISK_IDS: dict[str, list[str]] = {
     "education": ["RISK-004", "RISK-005"],
     "vendor_management": ["RISK-003"],
+    "access_control": ["RISK-001"],
+    "paper_management": ["RISK-002"],
+}
+
+# リスク確認（confirmed）を条件に提示する管理策候補の定義。
+# education・vendor_managementとは異なり、業務ヒアリングの回答だけでは提示せず、
+# 対応するリスクが利用者によって確認済み（confirmed）になって初めて候補として
+# 提示する（候補 ≠ 採用の原則は変えない。ここで生成する ControlSuggestion も
+# status=suggested のままであり、採用可否の正本はあくまでsetup側にある）。
+RISK_TRIGGERED_CONTROLS: dict[str, tuple[str, str, str, str]] = {
+    # risk_id -> (control_id, name, link_url, reason)
+    "RISK-001": (
+        "access_control",
+        "アクセス権限管理",
+        "/access-control",
+        "クラウドサービスまたは社外アクセスに伴う不正アクセスリスクが確認されているため、"
+        "利用者アカウントとアクセス権限を適切に管理する必要があります。",
+    ),
+    "RISK-002": (
+        "paper_management",
+        "紙媒体の保管・持出し・廃棄管理",
+        "/paper",
+        "個人情報を紙媒体で取り扱うことが確認され、紛失・盗難リスクが存在するため、"
+        "保管・持出し・廃棄方法を管理する必要があります。",
+    ),
 }
 
 
@@ -243,3 +268,29 @@ def confirmed_risk_reasons_for_control(control_id: str, risks: list[RiskCandidat
         for risk in risks
         if risk.risk_id in related_risk_ids and risk.status == RiskCandidateStatus.CONFIRMED
     ]
+
+
+def recommend_controls_from_confirmed_risks(risks: list[RiskCandidate]) -> list[ControlSuggestion]:
+    """確認済み（confirmed）リスクから、管理策候補を導出する。
+
+    既存の recommend_controls()（業務ヒアリングの回答のみを根拠とする）とは別の
+    提示経路として、RISK_TRIGGERED_CONTROLS に定義されたリスクが確認済みの場合に
+    限り、対応する管理策候補を生成する。リスクが未確認（candidate）・除外
+    （excluded）の間は、対応する管理策候補をここでは生成しない
+    （「リスク高＝問題発生済み」ではないのと同様、「リスク候補あり＝管理策候補あり」
+    でもない）。ここで生成する候補も status=suggested のままであり、
+    採用可否の判断はsetup側の利用者操作を経て初めて確定する。
+    """
+
+    suggestions: list[ControlSuggestion] = []
+    for risk in risks:
+        if risk.status != RiskCandidateStatus.CONFIRMED:
+            continue
+        mapping = RISK_TRIGGERED_CONTROLS.get(risk.risk_id)
+        if mapping is None:
+            continue
+        control_id, name, link_url, reason = mapping
+        suggestions.append(
+            ControlSuggestion(control_id=control_id, name=name, reason=reason, link_url=link_url)
+        )
+    return suggestions

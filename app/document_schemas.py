@@ -24,6 +24,8 @@ class DocumentType(str, Enum):
     PERSONAL_INFORMATION_LEDGER = "personal_information_ledger"
     EDUCATION_PROCEDURE = "education_procedure"
     VENDOR_MANAGEMENT_PROCEDURE = "vendor_management_procedure"
+    ACCESS_CONTROL_PROCEDURE = "access_control_procedure"
+    PAPER_MANAGEMENT_PROCEDURE = "paper_management_procedure"
 
 
 class DocumentStatus(str, Enum):
