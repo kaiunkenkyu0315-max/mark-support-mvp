@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from app.intake import (
+    CONTROL_STATUS_LABELS,
     LEDGER_FIELD_LABELS,
     is_ledger_complete,
     is_ledger_entry_complete,
@@ -44,12 +45,6 @@ CANDIDATE_STATUS_LABELS = {
     PersonalInformationCandidateStatus.CANDIDATE: "未確認（候補）",
     PersonalInformationCandidateStatus.CONFIRMED: "確認済み（取り扱っている）",
     PersonalInformationCandidateStatus.EXCLUDED: "除外（該当しない）",
-}
-
-CONTROL_STATUS_LABELS = {
-    ControlDecisionStatus.SUGGESTED: "未採用（候補）",
-    ControlDecisionStatus.ADOPTED: "採用済み",
-    ControlDecisionStatus.NOT_APPLICABLE: "非適用",
 }
 
 RISK_STATUS_LABELS = {
@@ -561,10 +556,13 @@ def _render_step6_summary(state: IntakeDemoState) -> str:
         )
         body = f'<p>採用した管理策の運用画面に進めます。</p><ul class="next-links">{links}</ul>'
 
+    documents_link = '<p><a href="/documents">文書を確認する</a></p>'
+
     return f"""
     <section class="step">
       <h2>STEP 6　運用開始</h2>
       {body}
+      {documents_link}
     </section>
     """
 

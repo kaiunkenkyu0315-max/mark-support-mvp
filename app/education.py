@@ -13,11 +13,27 @@ from app.schemas import (
     EducationEvaluationStatus,
     EducationIssue,
     Employee,
+    EmployeeRole,
     EmployeeStatus,
     TrainingControl,
     TrainingPlan,
     TrainingRecord,
 )
+
+# 役割の表示ラベル。教育管理画面（app.education_view）・文書生成（app.document_templates）の
+# 双方から参照される、事実データ（EmployeeRole）に対する表示名の単一の定義。
+ROLE_LABELS: dict[EmployeeRole, str] = {
+    EmployeeRole.EXECUTIVE: "経営者",
+    EmployeeRole.PRIVACY_MANAGER: "個人情報保護管理者",
+    EmployeeRole.PMARK_STAFF: "Pマーク担当者",
+    EmployeeRole.GENERAL_EMPLOYEE: "一般従業員",
+}
+
+
+def frequency_label(control: TrainingControl) -> str:
+    """教育管理策の実施頻度を表示用ラベルへ変換する。"""
+
+    return "年1回" if control.frequency.value == "annual" else control.frequency.value
 
 
 def evaluate_training(

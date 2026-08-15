@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import vendor_demo_state
+from app import intake_demo_state, vendor_demo_state
 from app.vendor_view import render_vendor_page
 from app.vendors import evaluate_vendors
 
@@ -20,7 +20,8 @@ router = APIRouter(prefix="/vendors", tags=["vendors"])
 def _render_current_page() -> str:
     state = vendor_demo_state.get_state()
     result = evaluate_vendors(state.vendors, state.control, state.assessments, state.contracts)
-    return render_vendor_page(state, result)
+    control_suggestions = intake_demo_state.get_state().control_suggestions
+    return render_vendor_page(state, result, control_suggestions)
 
 
 @router.get("", response_class=HTMLResponse)

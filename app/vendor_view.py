@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from app.intake import CONTROL_STATUS_LABELS, find_control_suggestion
+from app.intake_schemas import ControlSuggestion
 from app.vendor_demo_state import POLICY_CLAUSES, VendorDemoState
 from app.vendor_schemas import (
     AssessmentResult,
@@ -20,6 +22,7 @@ from app.vendor_schemas import (
     VendorEvaluationStatus,
     VendorIssue,
 )
+from app.vendors import assessment_frequency_label
 
 # 不足事項（rule_id）を、利用者向けの見出し・対応ボタンへ変換するための表示定義。
 # rule_idそのものはここでは主表示に使わず、判定詳細（詳細情報内）でのみ表示する。
@@ -75,6 +78,18 @@ def _date_label(value) -> str:
 
 def _issue_by_rule(result: VendorEvaluationResult, rule_id: str) -> VendorIssue | None:
     return next((issue for issue in result.issues if issue.rule_id == rule_id), None)
+
+
+def _setup_adoption_label(suggestion: ControlSuggestion | None) -> str:
+    """setupでの採用判断（正本）を表示用ラベルへ変換する。
+
+    この管理策自体（VendorControl）は採用可否の判断を持たないため、
+    ここでは必ずsetupのControlSuggestionを参照する。
+    """
+
+    if suggestion is None:
+        return "未確認（setupで未回答）"
+    return CONTROL_STATUS_LABELS[suggestion.status]
 
 
 def _vendor_names(state: VendorDemoState, vendor_ids: list[int]) -> str:
@@ -251,17 +266,18 @@ def _render_vendor_list_detail(state: VendorDemoState) -> str:
     """
 
 
-def _render_control_detail(state: VendorDemoState) -> str:
+def _render_control_detail(
+    state: VendorDemoState, control_suggestions: list[ControlSuggestion]
+) -> str:
     control = state.control
-    frequency_label = (
-        "年1回" if control.assessment_frequency.value == "annual" else control.assessment_frequency.value
-    )
+    frequency_label = assessment_frequency_label(control)
+    suggestion = find_control_suggestion(control_suggestions, "vendor_management")
     return f"""
     <div class="detail-block">
       <h3>委託先管理策</h3>
       <ul>
         <li>管理策名：{_escape(control.name)}</li>
-        <li>採用状態：{"採用中" if control.adopted else "未採用"}</li>
+        <li>採用状態（setupでの判断）：{_setup_adoption_label(suggestion)}</li>
         <li>初回評価：{"必須" if control.initial_assessment_required else "任意"}</li>
         <li>契約確認：{"必須" if control.contract_check_required else "任意"}</li>
         <li>定期評価：{"必須" if control.periodic_assessment_required else "任意"}</li>
@@ -361,12 +377,16 @@ def _render_judgement_detail(state: VendorDemoState, result: VendorEvaluationRes
     """
 
 
-def _render_details_section(state: VendorDemoState, result: VendorEvaluationResult) -> str:
+def _render_details_section(
+    state: VendorDemoState,
+    result: VendorEvaluationResult,
+    control_suggestions: list[ControlSuggestion],
+) -> str:
     return f"""
     <details class="detail">
       <summary>詳細を見る</summary>
       {_render_vendor_list_detail(state)}
-      {_render_control_detail(state)}
+      {_render_control_detail(state, control_suggestions)}
       {_render_policy_detail()}
       {_render_assessment_status_detail(state)}
       {_render_contract_status_detail(state)}
@@ -390,7 +410,11 @@ def _render_reset_section() -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_vendor_page(state: VendorDemoState, result: VendorEvaluationResult) -> str:
+def render_vendor_page(
+    state: VendorDemoState,
+    result: VendorEvaluationResult,
+    control_suggestions: list[ControlSuggestion],
+) -> str:
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -432,7 +456,7 @@ def render_vendor_page(state: VendorDemoState, result: VendorEvaluationResult) -
   {_render_status_summary(state, result)}
   {_render_todo_section(state, result)}
   {_render_problem_vendors_section(state, result)}
-  {_render_details_section(state, result)}
+  {_render_details_section(state, result, control_suggestions)}
   {_render_reset_section()}
 </body>
 </html>

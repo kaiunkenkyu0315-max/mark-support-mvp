@@ -118,7 +118,6 @@ def build_initial_state() -> VendorDemoState:
     control = VendorControl(
         id=1,
         name="委託先管理",
-        adopted=True,
         initial_assessment_required=True,
         contract_check_required=True,
         periodic_assessment_required=True,

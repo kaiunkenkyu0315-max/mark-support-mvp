@@ -42,11 +42,16 @@ class Vendor(BaseModel):
 
 
 class VendorControl(BaseModel):
-    """委託先管理策そのものの設定内容（事実データ）。"""
+    """委託先管理策の実施ルール（事実データ）。
+
+    「この管理策を採用したかどうか」の正式な判断はここでは持たない。
+    採用可否の正本は setup 側の ControlSuggestion（control_id="vendor_management"）の
+    status であり、ここには採用済みであることを前提とした実施ルール
+    （初回評価・契約確認・定期評価の要否と頻度）のみを持つ。
+    """
 
     id: int
     name: str
-    adopted: bool
     initial_assessment_required: bool
     contract_check_required: bool
     periodic_assessment_required: bool

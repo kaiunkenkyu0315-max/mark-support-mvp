@@ -43,6 +43,16 @@ LEDGER_REQUIRED_BOOL_FIELDS: tuple[str, ...] = ("outsourced", "third_party_provi
 # 再導出されるためここには含めない。
 LEDGER_EDITABLE_FIELDS: tuple[str, ...] = LEDGER_REQUIRED_TEXT_FIELDS[3:] + LEDGER_REQUIRED_BOOL_FIELDS
 
+# 管理策の採用状態（ControlDecisionStatus）の表示用ラベル。
+# 「管理策を採用したかどうか」の正式な判断はsetup（ControlSuggestion.status）を
+# 正とする。education・vendors等の運用画面や文書生成は、このラベルおよび
+# find_control_suggestion() を介して採用状態を参照し、独自の採用判断を持たない。
+CONTROL_STATUS_LABELS: dict[ControlDecisionStatus, str] = {
+    ControlDecisionStatus.SUGGESTED: "未採用（候補）",
+    ControlDecisionStatus.ADOPTED: "採用済み",
+    ControlDecisionStatus.NOT_APPLICABLE: "非適用",
+}
+
 # 台帳必須項目のUI表示用ラベル。
 LEDGER_FIELD_LABELS: dict[str, str] = {
     "name": "個人情報名称",
@@ -74,6 +84,23 @@ def missing_ledger_fields(candidate: PersonalInformationCandidate) -> list[str]:
     ]
     missing += [field for field in LEDGER_REQUIRED_BOOL_FIELDS if getattr(candidate, field) is None]
     return missing
+
+
+def find_control_suggestion(
+    control_suggestions: list[ControlSuggestion], control_id: str
+) -> ControlSuggestion | None:
+    """control_idに対応するControlSuggestionを取得する。
+
+    採用可否の正式な判断（adopted / not_applicable）を参照する唯一の入口として、
+    education・vendors・documents等はこの関数を介して setup の判断を参照する。
+    該当するControlSuggestionがまだ存在しない（=setupでまだ回答・提示されていない）
+    場合はNoneを返す。
+    """
+
+    return next(
+        (suggestion for suggestion in control_suggestions if suggestion.control_id == control_id),
+        None,
+    )
 
 
 def is_ledger_entry_complete(candidate: PersonalInformationCandidate) -> bool:

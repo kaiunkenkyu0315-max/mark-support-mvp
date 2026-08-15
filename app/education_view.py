@@ -11,6 +11,9 @@
 from __future__ import annotations
 
 from app.demo_state import POLICY_CLAUSES, EducationDemoState
+from app.education import ROLE_LABELS, frequency_label
+from app.intake import CONTROL_STATUS_LABELS, find_control_suggestion
+from app.intake_schemas import ControlSuggestion
 from app.schemas import (
     ComprehensionResult,
     EducationEvaluationResult,
@@ -20,13 +23,6 @@ from app.schemas import (
     EmployeeRole,
     TrainingRecord,
 )
-
-ROLE_LABELS = {
-    EmployeeRole.EXECUTIVE: "経営者",
-    EmployeeRole.PRIVACY_MANAGER: "個人情報保護管理者",
-    EmployeeRole.PMARK_STAFF: "Pマーク担当者",
-    EmployeeRole.GENERAL_EMPLOYEE: "一般従業員",
-}
 
 # 全体実績（詳細情報内）での優先表示件数。未受講・要確認者を優先し、全50名は常時表示しない。
 RECORD_PREVIEW_LIMIT = 10
@@ -66,7 +62,7 @@ def _role_label(role: EmployeeRole) -> str:
 
 
 def _frequency_label(control) -> str:
-    return "年1回" if control.frequency.value == "annual" else control.frequency.value
+    return frequency_label(control)
 
 
 def _training_status_label(record: TrainingRecord | None) -> str:
@@ -87,6 +83,18 @@ def _comprehension_label(record: TrainingRecord | None) -> str:
 
 def _issue_by_rule(result: EducationEvaluationResult, rule_id: str) -> EducationIssue | None:
     return next((issue for issue in result.issues if issue.rule_id == rule_id), None)
+
+
+def _setup_adoption_label(suggestion: ControlSuggestion | None) -> str:
+    """setupでの採用判断（正本）を表示用ラベルへ変換する。
+
+    この管理策自体（TrainingControl）は採用可否の判断を持たないため、
+    ここでは必ずsetupのControlSuggestionを参照する。
+    """
+
+    if suggestion is None:
+        return "未確認（setupで未回答）"
+    return CONTROL_STATUS_LABELS[suggestion.status]
 
 
 def _employee_names(state: EducationDemoState, employee_ids: list[int]) -> str:
@@ -253,15 +261,18 @@ def _render_company_detail(state: EducationDemoState) -> str:
     """
 
 
-def _render_control_detail(state: EducationDemoState) -> str:
+def _render_control_detail(
+    state: EducationDemoState, control_suggestions: list[ControlSuggestion]
+) -> str:
     control = state.control
     roles = "、".join(_role_label(role) for role in control.target_roles)
+    suggestion = find_control_suggestion(control_suggestions, "education")
     return f"""
     <div class="detail-block">
       <h3>教育管理策</h3>
       <ul>
         <li>管理策名：{_escape(control.name)}</li>
-        <li>採用状態：{"採用中" if control.adopted else "未採用"}</li>
+        <li>採用状態（setupでの判断）：{_setup_adoption_label(suggestion)}</li>
         <li>実施頻度：{_frequency_label(control)}</li>
         <li>教育対象：{roles}</li>
         <li>理解度確認：{"必須" if control.comprehension_required else "任意"}</li>
@@ -387,13 +398,15 @@ def _render_judgement_detail(state: EducationDemoState, result: EducationEvaluat
 
 
 def _render_details_section(
-    state: EducationDemoState, result: EducationEvaluationResult
+    state: EducationDemoState,
+    result: EducationEvaluationResult,
+    control_suggestions: list[ControlSuggestion],
 ) -> str:
     return f"""
     <details class="detail">
       <summary>詳細を見る</summary>
       {_render_company_detail(state)}
-      {_render_control_detail(state)}
+      {_render_control_detail(state, control_suggestions)}
       {_render_policy_detail()}
       {_render_plan_detail(state, result)}
       {_render_full_records_detail(state, result)}
@@ -417,7 +430,11 @@ def _render_reset_section() -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_education_page(state: EducationDemoState, result: EducationEvaluationResult) -> str:
+def render_education_page(
+    state: EducationDemoState,
+    result: EducationEvaluationResult,
+    control_suggestions: list[ControlSuggestion],
+) -> str:
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -459,7 +476,7 @@ def render_education_page(state: EducationDemoState, result: EducationEvaluation
   {_render_status_summary(state, result)}
   {_render_todo_section(state, result)}
   {_render_problem_employees_section(state, result)}
-  {_render_details_section(state, result)}
+  {_render_details_section(state, result, control_suggestions)}
   {_render_reset_section()}
 </body>
 </html>

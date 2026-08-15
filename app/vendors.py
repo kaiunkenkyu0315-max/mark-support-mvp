@@ -22,6 +22,16 @@ from app.vendor_schemas import (
 )
 
 
+def assessment_frequency_label(control: VendorControl) -> str:
+    """委託先評価の頻度を表示用ラベルへ変換する。"""
+
+    return (
+        "年1回"
+        if control.assessment_frequency.value == "annual"
+        else control.assessment_frequency.value
+    )
+
+
 def evaluate_vendors(
     vendors: list[Vendor],
     control: VendorControl,

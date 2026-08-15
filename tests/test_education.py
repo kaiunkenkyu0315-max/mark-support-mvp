@@ -23,7 +23,6 @@ def make_control(**overrides):
     defaults = dict(
         id=1,
         name="年次教育",
-        adopted=True,
         frequency=TrainingFrequency.ANNUAL,
         target_roles=ALL_ROLES,
         comprehension_required=True,

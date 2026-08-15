@@ -55,11 +55,16 @@ class Employee(BaseModel):
 
 
 class TrainingControl(BaseModel):
-    """教育管理策そのものの設定内容（事実データ）。"""
+    """教育管理策の実施ルール（事実データ）。
+
+    「この管理策を採用したかどうか」の正式な判断はここでは持たない。
+    採用可否の正本は setup 側の ControlSuggestion（control_id="education"）の
+    status であり、ここには採用済みであることを前提とした実施ルール
+    （頻度・対象者・必須項目）のみを持つ。
+    """
 
     id: int
     name: str
-    adopted: bool
     frequency: TrainingFrequency
     target_roles: list[EmployeeRole]
     comprehension_required: bool

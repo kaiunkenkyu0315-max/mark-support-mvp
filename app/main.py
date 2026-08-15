@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from app import demo_state, intake_demo_state, vendor_demo_state
+from app.document_routes import get_current_documents
+from app.document_routes import router as document_router
+from app.document_schemas import DocumentStatus
 from app.education import evaluate_training
 from app.education_routes import router as education_router
 from app.intake_routes import router as intake_router
@@ -29,6 +32,7 @@ app = FastAPI(title=APP_NAME)
 app.include_router(intake_router)
 app.include_router(education_router)
 app.include_router(vendor_router)
+app.include_router(document_router)
 
 
 @app.get("/health")
@@ -66,6 +70,11 @@ def index() -> str:
     vendor_status_class = (
         "compliant" if vendor_result.status == VendorEvaluationStatus.COMPLIANT else "needs-action"
     )
+
+    documents = get_current_documents()
+    documents_needs_action = any(document.status == DocumentStatus.DRAFT for document in documents)
+    documents_status_label = "情報不足あり" if documents_needs_action else "準備完了"
+    documents_status_class = "needs-action" if documents_needs_action else "compliant"
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -105,6 +114,13 @@ def index() -> str:
     <h3>委託先管理</h3>
     <p>状態：<span class="status-badge {vendor_status_class}">{vendor_result.status.value}</span></p>
     <p><a href="/vendors">確認する</a></p>
+  </div>
+
+  <div class="control-card">
+    <h3>文書</h3>
+    <p>個人情報管理台帳・教育手順・委託先管理手順など、管理策に対応する運用文書を確認します。</p>
+    <p>状態：<span class="status-badge {documents_status_class}">{documents_status_label}</span></p>
+    <p><a href="/documents">確認する</a></p>
   </div>
 </body>
 </html>

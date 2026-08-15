@@ -109,7 +109,6 @@ def build_initial_state() -> EducationDemoState:
     control = TrainingControl(
         id=1,
         name="個人情報保護教育",
-        adopted=True,
         frequency=TrainingFrequency.ANNUAL,
         target_roles=ALL_ROLES,
         comprehension_required=True,

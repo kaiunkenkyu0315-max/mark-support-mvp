@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import demo_state
+from app import demo_state, intake_demo_state
 from app.education import evaluate_training
 from app.education_view import render_education_page
 
@@ -20,7 +20,8 @@ router = APIRouter(prefix="/education", tags=["education"])
 def _render_current_page() -> str:
     state = demo_state.get_state()
     result = evaluate_training(state.employees, state.control, state.plan, state.records)
-    return render_education_page(state, result)
+    control_suggestions = intake_demo_state.get_state().control_suggestions
+    return render_education_page(state, result, control_suggestions)
 
 
 @router.get("", response_class=HTMLResponse)
