@@ -5,10 +5,23 @@ from app import demo_state, intake_demo_state, vendor_demo_state
 from app.education import evaluate_training
 from app.education_routes import router as education_router
 from app.intake_routes import router as intake_router
+from app.intake_schemas import SetupStatus
 from app.schemas import EducationEvaluationStatus
 from app.vendor_routes import router as vendor_router
 from app.vendor_schemas import VendorEvaluationStatus
 from app.vendors import evaluate_vendors
+
+SETUP_STATUS_LABELS = {
+    SetupStatus.NOT_STARTED: "未着手",
+    SetupStatus.IN_PROGRESS: "設定中",
+    SetupStatus.COMPLETE: "完了",
+}
+
+SETUP_STATUS_CSS_CLASS = {
+    SetupStatus.NOT_STARTED: "not-started",
+    SetupStatus.IN_PROGRESS: "needs-action",
+    SetupStatus.COMPLETE: "compliant",
+}
 
 APP_NAME = "Pマーク取得・運用支援ツール MVP"
 
@@ -26,8 +39,9 @@ def health() -> dict[str, str]:
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     intake_state = intake_demo_state.get_state()
-    setup_status_label = "完了" if intake_demo_state.is_setup_complete(intake_state) else "設定中"
-    setup_status_class = "compliant" if setup_status_label == "完了" else "needs-action"
+    setup_status = intake_demo_state.get_setup_status(intake_state)
+    setup_status_label = SETUP_STATUS_LABELS[setup_status]
+    setup_status_class = SETUP_STATUS_CSS_CLASS[setup_status]
 
     education_state = demo_state.get_state()
     education_result = evaluate_training(
@@ -65,6 +79,7 @@ def index() -> str:
     .status-badge {{ display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; }}
     .status-badge.needs-action {{ background: #b30000; color: #fff; }}
     .status-badge.compliant {{ background: #0a7a0a; color: #fff; }}
+    .status-badge.not-started {{ background: #666; color: #fff; }}
   </style>
 </head>
 <body>

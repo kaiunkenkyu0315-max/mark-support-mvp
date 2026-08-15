@@ -61,10 +61,30 @@ class PersonalInformationCandidate(BaseModel):
     purpose: str
     reason: str
     source_key: str
-    outsourced: bool = False
     status: PersonalInformationCandidateStatus = PersonalInformationCandidateStatus.CANDIDATE
     needs_review: bool = False
     """回答変更により前提が変わったため、利用者による再確認が望ましい状態。"""
+
+    # 台帳必須項目。name/subject_type/purposeは生成時点で必ず入力されるが、
+    # 以下はconfirmedになった後、台帳画面で利用者が入力する（未入力はNone）。
+    # outsourced・third_party_providedはbool | Noneとし、「なし」（False）と
+    # 「未回答」（None）を区別する。
+    acquisition_method: str | None = None
+    """台帳必須項目：取得方法。"""
+    storage_method: str | None = None
+    """台帳必須項目：保管方法。"""
+    storage_location: str | None = None
+    """台帳必須項目：保管場所。"""
+    outsourced: bool | None = None
+    """台帳必須項目：外部委託の有無。"""
+    third_party_provided: bool | None = None
+    """台帳必須項目：第三者提供の有無。"""
+    retention_period: str | None = None
+    """台帳必須項目：保管期間。"""
+    disposal_method: str | None = None
+    """台帳必須項目：廃棄方法。"""
+    responsible_role: str | None = None
+    """台帳必須項目：管理担当者（役割）。"""
 
 
 class ControlDecisionStatus(str, Enum):
@@ -89,3 +109,17 @@ class ControlSuggestion(BaseModel):
     link_url: str | None = None
     needs_review: bool = False
     """回答変更により前提が変わったため、利用者による再確認が望ましい状態。"""
+
+
+class SetupStatus(str, Enum):
+    """初期設定全体の進捗状態。
+
+    NOT_STARTED: 業務ヒアリングにまだ回答していない。
+    IN_PROGRESS: 回答済みだが、個人情報候補・リスク候補・管理策候補の確認、
+        または台帳必須項目の入力が残っている（needs_reviewが残っている場合も含む）。
+    COMPLETE: 確認・入力すべきものがすべて解消されている。
+    """
+
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"

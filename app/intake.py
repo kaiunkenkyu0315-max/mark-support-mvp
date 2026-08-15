@@ -22,6 +22,85 @@ from app.intake_schemas import (
     QuestionnaireAnswers,
 )
 
+# 台帳必須項目（confirmedな個人情報について、これらがすべて入力されて初めて
+# 台帳としての記載が完了したと見なす）。文字列項目とtri-state（bool | None）項目は
+# 「入力済み」の判定方法が異なるため分けて管理する。
+LEDGER_REQUIRED_TEXT_FIELDS: tuple[str, ...] = (
+    "name",
+    "subject_type",
+    "purpose",
+    "acquisition_method",
+    "storage_method",
+    "storage_location",
+    "retention_period",
+    "disposal_method",
+    "responsible_role",
+)
+LEDGER_REQUIRED_BOOL_FIELDS: tuple[str, ...] = ("outsourced", "third_party_provided")
+
+# 台帳フォームで利用者が入力する項目のうち、回答変更後の再計算（merge）でも
+# 維持すべきもの。name/subject_type/purposeは業務ヒアリングの回答から
+# 再導出されるためここには含めない。
+LEDGER_EDITABLE_FIELDS: tuple[str, ...] = LEDGER_REQUIRED_TEXT_FIELDS[3:] + LEDGER_REQUIRED_BOOL_FIELDS
+
+# 台帳必須項目のUI表示用ラベル。
+LEDGER_FIELD_LABELS: dict[str, str] = {
+    "name": "個人情報名称",
+    "subject_type": "対象本人の区分",
+    "purpose": "利用目的",
+    "acquisition_method": "取得方法",
+    "storage_method": "保管方法",
+    "storage_location": "保管場所",
+    "outsourced": "外部委託の有無",
+    "third_party_provided": "第三者提供の有無",
+    "retention_period": "保管期間",
+    "disposal_method": "廃棄方法",
+    "responsible_role": "管理担当者（役割）",
+}
+
+
+def missing_ledger_fields(candidate: PersonalInformationCandidate) -> list[str]:
+    """1件の個人情報について、未入力の台帳必須項目のフィールド名一覧を返す。
+
+    confirmedでない候補は、すべての台帳必須項目を未入力として扱う。
+    """
+
+    if candidate.status != PersonalInformationCandidateStatus.CONFIRMED:
+        return [*LEDGER_REQUIRED_TEXT_FIELDS, *LEDGER_REQUIRED_BOOL_FIELDS]
+    missing = [
+        field
+        for field in LEDGER_REQUIRED_TEXT_FIELDS
+        if not (getattr(candidate, field) or "").strip()
+    ]
+    missing += [field for field in LEDGER_REQUIRED_BOOL_FIELDS if getattr(candidate, field) is None]
+    return missing
+
+
+def is_ledger_entry_complete(candidate: PersonalInformationCandidate) -> bool:
+    """1件の個人情報について、台帳必須項目がすべて入力済みかどうか。
+
+    confirmed（取り扱っていると確認済み）でない候補は、そもそも台帳に
+    記載する対象ではないため、常にFalseとする。
+    """
+
+    if candidate.status != PersonalInformationCandidateStatus.CONFIRMED:
+        return False
+    return not missing_ledger_fields(candidate)
+
+
+def is_ledger_complete(candidates: list[PersonalInformationCandidate]) -> bool:
+    """確認済み個人情報すべてについて、台帳必須項目が入力済みかどうか。
+
+    確認済みの個人情報が1件もない場合は、記載すべき対象がないためTrueとする。
+    """
+
+    confirmed = [
+        candidate
+        for candidate in candidates
+        if candidate.status == PersonalInformationCandidateStatus.CONFIRMED
+    ]
+    return all(is_ledger_entry_complete(candidate) for candidate in confirmed)
+
 
 def derive_personal_information_candidates(
     answers: QuestionnaireAnswers,
@@ -37,7 +116,7 @@ def derive_personal_information_candidates(
         subject_type: str,
         purpose: str,
         reason: str,
-        outsourced: bool = False,
+        outsourced: bool | None = None,
     ) -> None:
         nonlocal next_id
         candidates.append(
@@ -147,10 +226,10 @@ def merge_candidates_after_answers_change(
     """回答変更後、個人情報候補を再計算する。
 
     引き続き成立する候補（source_keyが一致）は、利用者がすでに行った
-    確認・除外の判断をそのまま維持する。回答変更で前提が失われた候補は、
-    未確認（candidate）のままなら取り下げるが、利用者がすでに確認・除外して
-    いた場合は判断を消さず、needs_review=True（要再確認）として残す。
-    新たに該当するようになった項目は、新規候補として追加する。
+    確認・除外の判断、および入力済みの台帳必須項目をそのまま維持する。
+    回答変更で前提が失われた候補は、未確認（candidate）のままなら取り下げるが、
+    利用者がすでに確認・除外していた場合は判断を消さず、needs_review=True
+    （要再確認）として残す。新たに該当するようになった項目は、新規候補として追加する。
     """
 
     fresh_candidates = derive_personal_information_candidates(answers)
@@ -166,7 +245,11 @@ def merge_candidates_after_answers_change(
         else:
             merged.append(
                 fresh_candidate.model_copy(
-                    update={"status": previous.status, "needs_review": False}
+                    update={
+                        "status": previous.status,
+                        "needs_review": False,
+                        **{field: getattr(previous, field) for field in LEDGER_EDITABLE_FIELDS},
+                    }
                 )
             )
 

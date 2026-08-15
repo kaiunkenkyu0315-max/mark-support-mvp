@@ -9,15 +9,34 @@
 
 from __future__ import annotations
 
-from app.intake_demo_state import QUESTIONS, IntakeDemoState, is_setup_complete
+from app.intake import (
+    LEDGER_FIELD_LABELS,
+    is_ledger_complete,
+    is_ledger_entry_complete,
+    missing_ledger_fields,
+)
+from app.intake_demo_state import QUESTIONS, IntakeDemoState, get_setup_status
 from app.intake_schemas import (
     ControlDecisionStatus,
     ControlSuggestion,
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
+    SetupStatus,
 )
 from app.risk import CONTROL_RELATED_RISK_IDS, confirmed_risk_reasons_for_control, evaluate_risk
 from app.risk_schemas import RiskCandidate, RiskCandidateStatus, RiskLevel
+
+SETUP_STATUS_LABELS = {
+    SetupStatus.NOT_STARTED: "未着手",
+    SetupStatus.IN_PROGRESS: "設定中",
+    SetupStatus.COMPLETE: "完了",
+}
+
+SETUP_STATUS_CSS_CLASS = {
+    SetupStatus.NOT_STARTED: "not-started",
+    SetupStatus.IN_PROGRESS: "needs-action",
+    SetupStatus.COMPLETE: "compliant",
+}
 
 QUESTION_LABELS = dict(QUESTIONS)
 
@@ -88,6 +107,19 @@ def _radio(field: str, value: str, label: str, current: bool | None) -> str:
     checked = " checked" if (current is True and value == "yes") or (current is False and value == "no") else ""
     return (
         f'<label><input type="radio" name="{field}" value="{value}" required{checked}> {label}</label>'
+    )
+
+
+def _tristate_radio_group(field: str, current: bool | None) -> str:
+    """台帳項目のうち、あり／なし／未回答の3値を取り得る項目用のラジオボタン群。
+
+    未入力（None）を「いいえ」で代用せず、明示的に「未回答」として選べるようにする。
+    """
+
+    options = (("yes", "あり", current is True), ("no", "なし", current is False), ("unknown", "未回答", current is None))
+    return "".join(
+        f'<label><input type="radio" name="{field}" value="{value}"{" checked" if checked else ""}> {label}</label>'
+        for value, label, checked in options
     )
 
 
@@ -199,6 +231,62 @@ def _render_step3_confirmation(state: IntakeDemoState) -> str:
     """
 
 
+def _render_ledger_entry(candidate: PersonalInformationCandidate) -> str:
+    review_note = f'<p class="needs-review">⚠ {NEEDS_REVIEW_NOTE}</p>' if candidate.needs_review else ""
+    entry_complete = is_ledger_entry_complete(candidate)
+    if entry_complete:
+        entry_status_note = '<p class="ledger-entry-complete">台帳項目：入力済み</p>'
+    else:
+        missing_labels = "、".join(
+            LEDGER_FIELD_LABELS.get(field, field) for field in missing_ledger_fields(candidate)
+        )
+        entry_status_note = (
+            f'<p class="ledger-entry-incomplete">⚠ 台帳必須項目が未入力です（{_escape(missing_labels)}）。</p>'
+        )
+
+    return f"""
+    <li class="candidate-item">
+      <p class="candidate-name">{_escape(candidate.name)}</p>
+      <p class="candidate-reason">
+        対象本人の区分：{_escape(candidate.subject_type)}／
+        主な利用目的：{_escape(candidate.purpose)}／
+        候補となった業務：{_escape(QUESTION_LABELS.get(candidate.source_key, candidate.source_key))}
+      </p>
+      {review_note}
+      {entry_status_note}
+      <form method="post" action="/setup/candidates/{candidate.id}/ledger" class="ledger-form">
+        <label>取得方法
+          <input type="text" name="acquisition_method" value="{_escape(candidate.acquisition_method or '')}">
+        </label>
+        <label>保管方法
+          <input type="text" name="storage_method" value="{_escape(candidate.storage_method or '')}">
+        </label>
+        <label>保管場所
+          <input type="text" name="storage_location" value="{_escape(candidate.storage_location or '')}">
+        </label>
+        <div class="ledger-form-row">
+          <span class="ledger-form-row-label">外部委託の有無</span>
+          {_tristate_radio_group('outsourced', candidate.outsourced)}
+        </div>
+        <div class="ledger-form-row">
+          <span class="ledger-form-row-label">第三者提供の有無</span>
+          {_tristate_radio_group('third_party_provided', candidate.third_party_provided)}
+        </div>
+        <label>保管期間
+          <input type="text" name="retention_period" value="{_escape(candidate.retention_period or '')}">
+        </label>
+        <label>廃棄方法
+          <input type="text" name="disposal_method" value="{_escape(candidate.disposal_method or '')}">
+        </label>
+        <label>管理担当者（役割）
+          <input type="text" name="responsible_role" value="{_escape(candidate.responsible_role or '')}">
+        </label>
+        <button type="submit">台帳項目を保存する</button>
+      </form>
+    </li>
+    """
+
+
 def _render_ledger_section(state: IntakeDemoState) -> str:
     confirmed = [
         candidate
@@ -214,26 +302,18 @@ def _render_ledger_section(state: IntakeDemoState) -> str:
         </section>
         """
 
-    rows = "".join(
-        "<tr>"
-        f"<td>{_escape(candidate.name)}</td>"
-        f"<td>{_escape(candidate.subject_type)}</td>"
-        f"<td>{_escape(candidate.purpose)}</td>"
-        f"<td>{_escape(QUESTION_LABELS.get(candidate.source_key, candidate.source_key))}</td>"
-        f"<td>{'あり' if candidate.outsourced else 'なし'}</td>"
-        "</tr>"
-        for candidate in confirmed
-    )
+    ledger_complete = is_ledger_complete(state.candidates)
+    ledger_status_label = "完了" if ledger_complete else "未完了"
+    ledger_status_class = "compliant" if ledger_complete else "needs-action"
+    rows = "".join(_render_ledger_entry(candidate) for candidate in confirmed)
+
     return f"""
     <section class="ledger">
       <h2>確認済み個人情報（簡易台帳）</h2>
-      <p>候補一覧とは区別して、利用者が「取り扱っている」と確認したものだけを表示します。</p>
-      <table class="records-table">
-        <thead>
-          <tr><th>個人情報名称</th><th>対象本人の区分</th><th>主な利用目的</th><th>候補となった業務</th><th>外部委託の有無</th></tr>
-        </thead>
-        <tbody>{rows}</tbody>
-      </table>
+      <p>候補一覧とは区別して、利用者が「取り扱っている」と確認したものだけを表示します。
+      台帳必須項目をすべて入力すると、台帳項目が完了します。</p>
+      <p class="ledger-status">台帳の状態：<span class="status-badge {ledger_status_class}">{ledger_status_label}</span></p>
+      <ul class="candidate-list">{rows}</ul>
     </section>
     """
 
@@ -505,7 +585,9 @@ def _render_reset_section() -> str:
 
 
 def render_setup_page(state: IntakeDemoState) -> str:
-    status_label = "完了" if is_setup_complete(state) else "設定中"
+    setup_status = get_setup_status(state)
+    status_label = SETUP_STATUS_LABELS[setup_status]
+    status_class = SETUP_STATUS_CSS_CLASS[setup_status]
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -522,6 +604,18 @@ def render_setup_page(state: IntakeDemoState) -> str:
       padding: 0.2rem 0.6rem; font-size: 0.9rem;
     }}
     .setup-status {{ font-weight: bold; }}
+    .status-badge {{ display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; color: #fff; }}
+    .status-badge.not-started {{ background: #666; }}
+    .status-badge.needs-action {{ background: #b30000; }}
+    .status-badge.compliant {{ background: #0a7a0a; }}
+    .ledger-status {{ font-weight: bold; }}
+    .ledger-entry-complete {{ margin: 0 0 0.5rem; color: #0a7a0a; font-weight: bold; }}
+    .ledger-entry-incomplete {{ margin: 0 0 0.5rem; color: #b30000; font-weight: bold; }}
+    .ledger-form label {{ display: inline-block; margin-right: 0.75rem; }}
+    .ledger-form input[type="text"] {{ margin-left: 0.3rem; }}
+    .ledger-form-row {{ margin: 0 0 0.5rem; }}
+    .ledger-form-row-label {{ font-weight: bold; margin-right: 0.5rem; }}
+    .ledger-form-row label {{ display: inline-block; margin-right: 0.75rem; font-weight: normal; }}
     .question {{ margin-bottom: 0.75rem; }}
     .question p {{ margin: 0 0 0.3rem; font-weight: bold; }}
     .question label {{ margin-right: 1rem; }}
@@ -558,7 +652,7 @@ def render_setup_page(state: IntakeDemoState) -> str:
   <p><a href="/">&laquo; トップへ戻る</a></p>
   <h1>Pマーク準備</h1>
   <p>会社・業務について回答すると、取り扱っている可能性のある個人情報や、必要になり得る管理策の候補が提示されます。内容を確認・採用しながら準備を進めます。</p>
-  <p class="setup-status">初期設定の状態：{status_label}</p>
+  <p class="setup-status">初期設定の状態：<span class="status-badge {status_class}">{status_label}</span></p>
   {_render_stepper()}
 
   {_render_step1_answers(state)}

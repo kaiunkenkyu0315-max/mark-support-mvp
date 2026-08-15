@@ -18,6 +18,19 @@ from app.intake_view import render_setup_page
 router = APIRouter(prefix="/setup", tags=["setup"])
 
 
+def _parse_tristate_bool(value: object) -> bool | None:
+    """台帳フォームのtri-state radio（yes/no/unknown）をbool | Noneへ変換する。
+
+    "yes"/"no"以外（未送信・"unknown"等）はすべてNone（未回答）として扱う。
+    """
+
+    if value == "yes":
+        return True
+    if value == "no":
+        return False
+    return None
+
+
 def _render_current_page() -> str:
     state = intake_demo_state.get_state()
     return render_setup_page(state)
@@ -46,6 +59,23 @@ def confirm_candidate(candidate_id: int) -> RedirectResponse:
 @router.post("/candidates/{candidate_id}/exclude")
 def exclude_candidate(candidate_id: int) -> RedirectResponse:
     intake_demo_state.exclude_candidate(candidate_id)
+    return RedirectResponse(url="/setup", status_code=303)
+
+
+@router.post("/candidates/{candidate_id}/ledger")
+async def update_ledger_entry(candidate_id: int, request: Request) -> RedirectResponse:
+    form = await request.form()
+    intake_demo_state.update_ledger_entry(
+        candidate_id,
+        acquisition_method=str(form.get("acquisition_method") or ""),
+        storage_method=str(form.get("storage_method") or ""),
+        storage_location=str(form.get("storage_location") or ""),
+        outsourced=_parse_tristate_bool(form.get("outsourced")),
+        third_party_provided=_parse_tristate_bool(form.get("third_party_provided")),
+        retention_period=str(form.get("retention_period") or ""),
+        disposal_method=str(form.get("disposal_method") or ""),
+        responsible_role=str(form.get("responsible_role") or ""),
+    )
     return RedirectResponse(url="/setup", status_code=303)
 
 

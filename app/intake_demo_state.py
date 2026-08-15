@@ -4,8 +4,8 @@
 サーバー起動時は「未回答」状態で始まる。利用者がSTEP1の質問に回答して
 保存すると、候補生成ロジック（app.intake, app.risk）を実行して個人情報候補・
 リスク候補・管理策候補を用意する。ブラウザからの「回答保存」「確認」「採用」
-「非適用」「評価変更」操作は、このモジュールが保持するインメモリ状態のみを
-変更する。DBは使用せず、サーバー再起動で未回答の初期状態に戻る。
+「非適用」「評価変更」「台帳項目入力」操作は、このモジュールが保持する
+インメモリ状態のみを変更する。DBは使用せず、サーバー再起動で未回答の初期状態に戻る。
 
 事実（QuestionnaireAnswers）・候補（status=candidate/suggested）・
 確定（status=confirmed/adopted/not_applicable）を混同しない。
@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.intake import (
+    is_ledger_complete,
     merge_candidates_after_answers_change,
     merge_control_suggestions_after_answers_change,
 )
@@ -26,6 +27,7 @@ from app.intake_schemas import (
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
     QuestionnaireAnswers,
+    SetupStatus,
 )
 from app.risk import merge_risk_candidates_after_change
 from app.risk_schemas import RiskCandidate, RiskCandidateStatus
@@ -91,19 +93,38 @@ def reset_state() -> IntakeDemoState:
     return _state
 
 
-def is_setup_complete(state: IntakeDemoState) -> bool:
-    """初期設定が完了した状態と見なせるかどうか。
+def get_setup_status(state: IntakeDemoState) -> SetupStatus:
+    """初期設定全体の進捗状態を判定する。
 
-    回答が一度も保存されていない場合は未完了。回答済みでも、
-    まだ採用・非適用のいずれも判断していない管理策候補が残っていれば未完了とする。
+    NOT_STARTED：回答が一度も保存されていない。
+    IN_PROGRESS：回答済みだが、以下のいずれかが残っている。
+      - 未確認（candidate）のままの個人情報候補・リスク候補
+      - 未採用・非適用のいずれも判断していない管理策候補（suggested）
+      - 台帳必須項目が未入力の確認済み個人情報
+      - needs_review=True の項目（個人情報候補・リスク候補・管理策候補いずれか）
+    COMPLETE：回答済みで、上記がすべて解消されている。
     """
 
     if not state.answers_submitted:
-        return False
-    return not any(
-        suggestion.status == ControlDecisionStatus.SUGGESTED
+        return SetupStatus.NOT_STARTED
+
+    unresolved_candidates = any(
+        candidate.status == PersonalInformationCandidateStatus.CANDIDATE
+        or candidate.needs_review
+        for candidate in state.candidates
+    )
+    unresolved_risks = any(
+        risk.status == RiskCandidateStatus.CANDIDATE or risk.needs_review for risk in state.risks
+    )
+    unresolved_controls = any(
+        suggestion.status == ControlDecisionStatus.SUGGESTED or suggestion.needs_review
         for suggestion in state.control_suggestions
     )
+    ledger_incomplete = not is_ledger_complete(state.candidates)
+
+    if unresolved_candidates or unresolved_risks or unresolved_controls or ledger_incomplete:
+        return SetupStatus.IN_PROGRESS
+    return SetupStatus.COMPLETE
 
 
 def _recalculate_risks() -> None:
@@ -145,6 +166,37 @@ def exclude_candidate(candidate_id: int) -> None:
             candidate.status = PersonalInformationCandidateStatus.EXCLUDED
             candidate.needs_review = False
     _recalculate_risks()
+
+
+def update_ledger_entry(
+    candidate_id: int,
+    *,
+    acquisition_method: str,
+    storage_method: str,
+    storage_location: str,
+    outsourced: bool | None,
+    third_party_provided: bool | None,
+    retention_period: str,
+    disposal_method: str,
+    responsible_role: str,
+) -> None:
+    """確認済み個人情報について、台帳必須項目を保存する。
+
+    文字列項目は空欄をNone（未入力）として扱う。outsourced・third_party_provided は
+    bool | None（tri-state）のまま渡されたとおりに保存し、False（なし）と
+    None（未回答）を区別する。
+    """
+
+    for candidate in _state.candidates:
+        if candidate.id == candidate_id:
+            candidate.acquisition_method = acquisition_method.strip() or None
+            candidate.storage_method = storage_method.strip() or None
+            candidate.storage_location = storage_location.strip() or None
+            candidate.outsourced = outsourced
+            candidate.third_party_provided = third_party_provided
+            candidate.retention_period = retention_period.strip() or None
+            candidate.disposal_method = disposal_method.strip() or None
+            candidate.responsible_role = responsible_role.strip() or None
 
 
 def confirm_risk(risk_candidate_id: int) -> None:
