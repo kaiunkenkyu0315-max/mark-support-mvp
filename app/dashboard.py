@@ -185,7 +185,21 @@ def _setup_todo_items(
         return [
             TodoItem(
                 area="リスク",
-                message="リスク候補を確認してください。該当するリスクは確認し、該当しないものは除外してください。",
+                message="リスク候補について、該当するか該当しないかをまとめて判断してください。",
+                link="/setup#step4",
+            )
+        ]
+
+    unreviewed_risk_evaluations = [
+        risk
+        for risk in risks
+        if risk.status == RiskCandidateStatus.CONFIRMED and not risk.evaluation_reviewed
+    ]
+    if unreviewed_risk_evaluations:
+        return [
+            TodoItem(
+                area="リスク評価",
+                message="該当すると判断したリスクの影響度・発生可能性を確認してください。システム初期案は必要に応じて変更できます。",
                 link="/setup#step4",
             )
         ]
