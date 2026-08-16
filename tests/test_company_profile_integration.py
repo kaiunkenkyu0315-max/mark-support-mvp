@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import company_profile, demo_state, intake_demo_state
+from app.intake_schemas import ControlDecisionStatus, ControlSuggestion
 from app.main import app
 
 client = TestClient(app)
@@ -16,6 +17,18 @@ def reset_states():
     company_profile.reset_state()
     intake_demo_state.reset_state()
     demo_state.reset_state()
+
+
+def _adopt_education_control() -> None:
+    intake_demo_state.get_state().control_suggestions.append(
+        ControlSuggestion(
+            control_id="education",
+            name="個人情報保護教育",
+            reason="会社情報連携テスト用",
+            status=ControlDecisionStatus.ADOPTED,
+            link_url="/education",
+        )
+    )
 
 
 def test_setup_starts_with_shared_company_information_step():
@@ -48,6 +61,7 @@ def test_company_information_flows_into_education_management():
     assert response.status_code == 303
     assert response.headers["location"] == "/setup#step1"
 
+    _adopt_education_control()
     education = client.get("/education")
     assert education.status_code == 200
     assert "教育管理：株式会社テスト共通" in education.text
@@ -100,6 +114,7 @@ def test_pms_and_application_profile_fields_are_saved_as_shared_data():
 
 
 def test_default_company_profile_keeps_existing_education_demo_shape():
+    _adopt_education_control()
     education = client.get("/education")
 
     assert "株式会社サンプル" in education.text
