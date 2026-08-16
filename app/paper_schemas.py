@@ -37,21 +37,35 @@ class PaperControl(BaseModel):
 class PaperMediaStatus(BaseModel):
     """紙媒体の保管・持出し・廃棄の実施状況（事実データ）。
 
-    storage_location・disposal_method が None（空）の場合は「未登録」を表す。
-    storage_locked・disposal_confirmed・approved は、確認・実施済みかどうかを表す
-    bool（実施ルールとしての要否は PaperControl 側が持つ）。
+    booleanだけで適合状態を作らず、実施日・担当者・確認方法・証跡等の
+    説明可能な記録も保持する。既存のbooleanは整合性判定との互換性を保つ。
     """
 
     id: int
     control_id: int
     handled_personal_information: list[str] = []
     """紙媒体で取り扱っている個人情報の名称一覧（表示用の事実データ）。"""
+
     storage_location: str | None = None
     storage_locked: bool = False
+    storage_lock_checked_on: str | None = None
+    storage_lock_checked_by: str | None = None
+    storage_lock_check_method: str | None = None
+    storage_lock_evidence: str | None = None
+
     take_out_rule: str | None = None
+    take_out_rule_defined_on: str | None = None
+    take_out_rule_defined_by: str | None = None
+
     disposal_method: str | None = None
     disposal_confirmed: bool = False
+    disposal_confirmed_on: str | None = None
+    disposal_confirmed_by: str | None = None
+    disposal_evidence: str | None = None
+
     approved: bool = False
+    approved_by: str | None = None
+    approved_at: str | None = None
 
 
 class PaperEvaluationStatus(str, Enum):
