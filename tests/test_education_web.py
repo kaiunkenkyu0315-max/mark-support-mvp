@@ -71,20 +71,35 @@ def test_initial_state_shows_all_four_issue_rules():
         assert rule_id in response.text
 
 
-def test_initial_state_shows_issue_count_and_todo_list():
+def test_initial_state_shows_overall_issue_count_but_only_one_current_todo():
     response = client.get("/education")
 
+    # 森：全体の不足数は残す。
     assert "対応が必要な項目：4件" in response.text
-    assert "今やること" in response.text
-    assert "未受講者がいます" in response.text
-    assert "一般従業員49" in response.text
-    assert "一般従業員50" in response.text
+
+    # 木：現在対応する作業は1件だけに絞る。
+    assert response.text.count("今やること") == 1
+    assert "今やること <span" in response.text
+    assert "1件" in response.text
+    assert "教育実施・教材記録を登録してください" in response.text
+
+
+def test_education_overview_shows_all_steps_and_current_position():
+    response = client.get("/education")
+
+    assert "教育の全体工程" in response.text
+    assert "全体進捗：0 / 4 工程 完了" in response.text
+    assert "1. 教育実施・教材記録" in response.text
+    assert "2. 受講記録" in response.text
+    assert "3. 理解度確認" in response.text
+    assert "4. 実施結果の承認" in response.text
+    assert "対応中 ← 現在" in response.text
+    assert "現在地：1. 教育実施・教材記録" in response.text
 
 
 def test_record_entry_shows_only_current_step_and_prefills_known_values():
     response = client.get("/education")
 
-    assert "教育実施記録" in response.text
     assert "1. 教育実施・教材記録" in response.text
     assert 'name="execution_date"' in response.text
     assert 'name="delivery_method"' in response.text
@@ -93,14 +108,14 @@ def test_record_entry_shows_only_current_step_and_prefills_known_values():
     assert 'name="instructor_name"' in response.text
     assert 'value="Pマーク担当者"' in response.text
 
-    # 後工程は最初から同時表示しない。
+    # 後工程の入力欄は最初から同時表示しない。全体工程の見出しだけは表示する。
     assert 'name="completed_on"' not in response.text
     assert 'name="comprehension_method"' not in response.text
     assert 'name="approved_by"' not in response.text
     assert "未受講者を受講済みにする" not in response.text
 
 
-def test_record_entry_advances_one_step_at_a_time():
+def test_record_entry_advances_one_step_at_a_time_with_overall_progress():
     response = client.post(
         "/education/actions/register-material-evidence",
         data={
@@ -110,7 +125,9 @@ def test_record_entry_advances_one_step_at_a_time():
             "instructor_name": "Pマーク担当者",
         },
     )
-    assert "2. 受講記録" in response.text
+    assert "全体進捗：1 / 4 工程 完了" in response.text
+    assert "現在地：2. 受講記録" in response.text
+    assert "未受講者2名の受講記録を登録してください" in response.text
     assert 'name="completed_on"' in response.text
     assert 'value="2026-06-10"' in response.text
     assert 'name="comprehension_method"' not in response.text
@@ -120,7 +137,9 @@ def test_record_entry_advances_one_step_at_a_time():
         "/education/actions/complete-trainings",
         data={"completed_on": "2026-06-10"},
     )
-    assert "3. 理解度確認記録" in response.text
+    assert "全体進捗：2 / 4 工程 完了" in response.text
+    assert "現在地：3. 理解度確認" in response.text
+    assert "理解度確認が未登録の3名について結果を登録してください" in response.text
     assert 'name="comprehension_method"' in response.text
     assert 'name="approved_by"' not in response.text
 
@@ -128,13 +147,17 @@ def test_record_entry_advances_one_step_at_a_time():
         "/education/actions/register-comprehension",
         data={"comprehension_method": "理解度確認テスト", "result": "passed"},
     )
-    assert "4. 教育実施結果の承認" in response.text
+    assert "全体進捗：3 / 4 工程 完了" in response.text
+    assert "現在地：4. 実施結果の承認" in response.text
+    assert "教育実施結果の承認記録を登録してください" in response.text
     assert 'name="approved_by"' in response.text
 
     response = client.post(
         "/education/actions/approve",
         data={"approved_by": "個人情報保護管理者 山田", "approved_at": "2026-06-11"},
     )
+    assert "全体進捗：4 / 4 工程 完了" in response.text
+    assert "現在地：全工程完了" in response.text
     assert "必要な教育実施記録は登録済みです" in response.text
     assert "適合" in response.text
 
