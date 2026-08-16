@@ -1,6 +1,7 @@
 """初期設定画面の補助UI。
 
 - STEP0: 会社・PMS基本情報を共通データとして入力
+- STEP1: STEP0で確定した事実は再入力させない
 - STEP2: 個人情報候補を「はい／いいえ」で一括回答
 - STEP3: 個人情報台帳を1件ずつ開く段階表示
 
@@ -10,6 +11,7 @@
 
 from __future__ import annotations
 
+import re
 from html import escape
 
 from app import company_profile
@@ -236,6 +238,28 @@ def _inject_step0(html: str) -> str:
     return html
 
 
+def _replace_employee_question_with_company_fact(html: str) -> str:
+    """STEP0保存後は従業者の有無を再質問せず、共通情報からの自動反映として表示する。"""
+
+    profile = company_profile.get_state()
+    if not profile.configured:
+        return html
+
+    pattern = (
+        r'\s*<div class="question">\s*'
+        r'<p>従業員がいますか？</p>.*?'
+        r'name="has_employees".*?'
+        r'</div>'
+    )
+    replacement = f"""
+        <div class="question company-derived-fact">
+          <p>従業者数：{profile.employee_count}名</p>
+          <p class="question-help">STEP0の会社情報から自動反映しています。この項目はここでは再入力不要です。</p>
+        </div>
+    """
+    return re.sub(pattern, replacement, html, count=1, flags=re.DOTALL)
+
+
 def _add_progressive_disclosure(html: str) -> str:
     if "</head>" in html:
         html = html.replace("</head>", _EXTRA_STYLE + "\n</head>", 1)
@@ -245,9 +269,10 @@ def _add_progressive_disclosure(html: str) -> str:
 
 
 def render_setup_page_with_batch_step2(state: IntakeDemoState) -> str:
-    """会社・PMS基本情報・STEP2一括回答・STEP3段階表示を統合した初期設定画面。"""
+    """会社・PMS基本情報・重複排除・STEP2一括回答・STEP3段階表示を統合する。"""
 
     html = _inject_step0(render_setup_page(state))
+    html = _replace_employee_question_with_company_fact(html)
     start = html.find(_STEP2_START)
     if start != -1:
         end = html.find(_STEP2_END, start)
