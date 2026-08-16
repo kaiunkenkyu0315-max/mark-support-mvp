@@ -9,25 +9,27 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import demo_state, intake_demo_state
 from app.education import evaluate_training
+from app.education_record_view import enhance_education_page
 from app.education_view import render_education_page
 from app.operational_gate import operational_control_is_adopted, render_inactive_operation_page
+from app.schemas import ComprehensionResult
 
 router = APIRouter(prefix="/education", tags=["education"])
 
 CONTROL_ID = "education"
 PAGE_TITLE = "教育管理"
 
-# 各操作（不足解消）後に表示する、利用者向けの短いフィードバックメッセージ。
+# 各操作後に表示する、利用者向けの短いフィードバックメッセージ。
 ACTION_MESSAGES: dict[str, str] = {
-    "complete-trainings": "受講状況を更新しました。",
-    "register-comprehension": "理解度確認結果を登録しました。",
-    "register-material-evidence": "教材記録を登録しました。",
-    "approve": "承認しました。",
+    "complete-trainings": "受講記録を登録しました。",
+    "register-comprehension": "理解度確認記録を登録しました。",
+    "register-material-evidence": "教育実施・教材記録を登録しました。",
+    "approve": "承認記録を登録しました。",
 }
 
 
@@ -38,7 +40,8 @@ def _render_current_page(flash: str | None = None) -> str:
     state = demo_state.get_state()
     result = evaluate_training(state.employees, state.control, state.plan, state.records)
     control_suggestions = intake_demo_state.get_state().control_suggestions
-    return render_education_page(state, result, control_suggestions, flash=flash)
+    html = render_education_page(state, result, control_suggestions, flash=flash)
+    return enhance_education_page(html, state, result)
 
 
 def _redirect_with_flash(action_key: str) -> RedirectResponse:
@@ -62,38 +65,65 @@ def education_page(flash: str | None = None) -> str:
 
 
 @router.post("/actions/complete-trainings")
-def complete_trainings() -> RedirectResponse:
+def complete_trainings(completed_on: str = Form("")) -> RedirectResponse:
     blocked = _blocked_action()
     if blocked:
         return blocked
-    demo_state.complete_all_trainings()
+    demo_state.complete_all_trainings(completed_on=completed_on)
     return _redirect_with_flash("complete-trainings")
 
 
 @router.post("/actions/register-comprehension")
-def register_comprehension() -> RedirectResponse:
+def register_comprehension(
+    comprehension_method: str = Form(""),
+    result: str = Form("passed"),
+) -> RedirectResponse:
     blocked = _blocked_action()
     if blocked:
         return blocked
-    demo_state.register_missing_comprehension()
+    comprehension_result = (
+        ComprehensionResult.FAILED if result == "failed" else ComprehensionResult.PASSED
+    )
+    demo_state.register_missing_comprehension(
+        comprehension_result,
+        method=comprehension_method,
+    )
     return _redirect_with_flash("register-comprehension")
 
 
 @router.post("/actions/register-material-evidence")
-def register_material_evidence() -> RedirectResponse:
+def register_material_evidence(
+    execution_date: str = Form(""),
+    delivery_method: str = Form(""),
+    material_name: str = Form(""),
+    instructor_name: str = Form(""),
+) -> RedirectResponse:
     blocked = _blocked_action()
     if blocked:
         return blocked
-    demo_state.register_material_evidence()
+
+    # 旧テスト・既存デモ操作から空POSTされた場合だけ、従来互換の既定記録を使用する。
+    if not any((execution_date, delivery_method, material_name, instructor_name)):
+        demo_state.register_material_evidence()
+    else:
+        demo_state.register_training_execution(
+            execution_date=execution_date,
+            delivery_method=delivery_method,
+            material_name=material_name,
+            instructor_name=instructor_name,
+        )
     return _redirect_with_flash("register-material-evidence")
 
 
 @router.post("/actions/approve")
-def approve() -> RedirectResponse:
+def approve(
+    approved_by: str = Form(""),
+    approved_at: str = Form(""),
+) -> RedirectResponse:
     blocked = _blocked_action()
     if blocked:
         return blocked
-    demo_state.approve_plan()
+    demo_state.approve_plan(approved_by=approved_by, approved_at=approved_at)
     return _redirect_with_flash("approve")
 
 
