@@ -64,6 +64,22 @@ def _first_operation_link(areas: list[OperationalAreaSummary]) -> str:
     return "/setup#step5"
 
 
+def _documents_link(data: DashboardData) -> str:
+    """文書画面へ進める前提がなければ、必要な初期設定工程へ戻す。"""
+
+    if data.personal_information_confirmed_count == 0:
+        return "/setup#step2"
+    return "/documents"
+
+
+def _operations_link(data: DashboardData) -> str:
+    """初期設定完了前は運用画面へ直接入れず、管理策確認へ案内する。"""
+
+    if data.setup_status != SetupStatus.COMPLETE:
+        return "/setup#step5"
+    return _first_operation_link(data.operational_areas)
+
+
 def _setup_status(data: DashboardData) -> tuple[str, str, bool]:
     if data.setup_status == SetupStatus.COMPLETE:
         return "完了", "complete", True
@@ -115,7 +131,7 @@ def build_acquisition_plan(data: DashboardData) -> AcquisitionPlan:
             "個人情報管理台帳や、採用した管理策に対応する規程・手順の準備状況を確認します。",
             docs_status,
             docs_kind,
-            "/documents",
+            _documents_link(data),
             docs_complete,
         ),
         (
@@ -124,7 +140,7 @@ def build_acquisition_plan(data: DashboardData) -> AcquisitionPlan:
             "教育・委託先・アクセス権限・紙媒体など、採用した管理策の実施記録を整えます。",
             operations_status,
             operations_kind,
-            _first_operation_link(data.operational_areas),
+            _operations_link(data),
             operations_complete,
         ),
     ]
