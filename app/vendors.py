@@ -55,7 +55,7 @@ def evaluate_vendors(
 
     issues: list[VendorIssue] = []
 
-    # VEN-001: 初回評価
+    # VEN-001: 初回評価未実施
     # activeかつ個人情報を取り扱う委託先について、初回評価が未実施なら不足とする。
     if control.initial_assessment_required:
         missing_initial_ids = [
@@ -72,6 +72,24 @@ def evaluate_vendors(
                     rule_id="VEN-001",
                     message=f"初回評価が未実施の委託先が{len(missing_initial_ids)}社あります。",
                     vendor_ids=missing_initial_ids,
+                )
+            )
+
+        # VEN-003: 初回評価で不適格
+        # 評価を実施した事実と、委託先として適格かどうかの結果を区別する。
+        failed_initial_ids = [
+            vendor_id
+            for vendor_id in target_ids
+            if (assessment := assessments_by_vendor.get(vendor_id)) is not None
+            and assessment.initial_assessment_completed
+            and assessment.initial_assessment_result == AssessmentResult.FAILED
+        ]
+        if failed_initial_ids:
+            issues.append(
+                VendorIssue(
+                    rule_id="VEN-003",
+                    message=f"初回評価で不適格の委託先が{len(failed_initial_ids)}社あります。",
+                    vendor_ids=failed_initial_ids,
                 )
             )
 
