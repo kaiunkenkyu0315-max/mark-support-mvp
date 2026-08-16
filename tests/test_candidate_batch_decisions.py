@@ -37,8 +37,9 @@ def test_step2_uses_yes_no_radios_and_one_batch_submit():
     assert "取り扱っていますか？" in response.text
     assert 'value="yes"' in response.text
     assert 'value="no"' in response.text
-    assert "/confirm" not in response.text
-    assert "/exclude" not in response.text
+    # STEP2では候補ごとの個別送信を使わない。ページ内のリスク確認URL等は対象外。
+    assert 'action="/setup/candidates/1/confirm"' not in response.text
+    assert 'action="/setup/candidates/1/exclude"' not in response.text
 
 
 def test_step2_batch_save_updates_all_candidates_at_once():
