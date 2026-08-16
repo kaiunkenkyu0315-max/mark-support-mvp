@@ -21,11 +21,6 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-# ---------------------------------------------------------------------------
-# Pマーク準備状況
-# ---------------------------------------------------------------------------
-
-
 def _render_setup_card(data: DashboardData) -> str:
     label = SETUP_STATUS_LABELS[data.setup_status]
     css_class = SETUP_STATUS_CSS_CLASS[data.setup_status]
@@ -125,11 +120,6 @@ def _render_preparation_section(data: DashboardData) -> str:
     """
 
 
-# ---------------------------------------------------------------------------
-# 運用状況
-# ---------------------------------------------------------------------------
-
-
 def _render_operational_card(area) -> str:
     return f"""
     <div class="summary-card">
@@ -151,11 +141,6 @@ def _render_operational_section(data: DashboardData) -> str:
       <div class="summary-grid">{cards}</div>
     </section>
     """
-
-
-# ---------------------------------------------------------------------------
-# 今やること
-# ---------------------------------------------------------------------------
 
 
 def _render_todo_section(data: DashboardData) -> str:
@@ -189,17 +174,17 @@ def _render_dev_tools() -> str:
     return """
     <section class="dev-tools">
       <h2>開発用ショートカット</h2>
-      <p>サーバー再起動後の手入力を省くため、初期設定完了・主要管理策採用済み・運用検証初期状態を一括で作ります。</p>
-      <form method="post" action="/dev/preset/operations">
+      <p>サーバー再起動後の手入力を省き、確認したい深さからすぐ検証できます。</p>
+      <form method="post" action="/dev/preset/operations" style="margin-bottom:0.75rem;">
         <button type="submit">運用検証用プリセットをセット</button>
+        <span> — 初期設定完了後、4つの管理策運用を最初から確認</span>
+      </form>
+      <form method="post" action="/dev/preset/pms-review">
+        <button type="submit">PMSレビュー検証用プリセットをセット</button>
+        <span> — 4つの管理策運用まで完了し、内部監査から確認</span>
       </form>
     </section>
     """
-
-
-# ---------------------------------------------------------------------------
-# ページ全体
-# ---------------------------------------------------------------------------
 
 
 def render_dashboard_page(app_name: str, data: DashboardData) -> str:
