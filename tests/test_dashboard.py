@@ -204,10 +204,10 @@ def test_dashboard_data_matches_underlying_evaluation_results():
     assert vendor_area.label == "採用判断待ち"
 
 
-# --- 7. ダッシュボードの要対応件数が採用済み管理策のみから集計される ---
+# --- 7. 初期設定完了後の要対応todoは採用済み管理策のみから集計される ---
 
 
-def test_dashboard_todo_items_only_come_from_adopted_controls():
+def test_dashboard_todo_items_only_come_from_adopted_controls_after_setup_complete():
     suggested_but_not_adopted = ControlSuggestion(
         control_id="vendor_management",
         name="委託先管理",
@@ -239,7 +239,7 @@ def test_dashboard_todo_items_only_come_from_adopted_controls():
     assert vendor_result.issues, "前提：委託先管理には初期状態で不足がある"
 
     data = build_dashboard_data(
-        setup_status=SetupStatus.IN_PROGRESS,
+        setup_status=SetupStatus.COMPLETE,
         candidates=[],
         risks=[],
         control_suggestions=[suggested_but_not_adopted, adopted],
@@ -290,18 +290,19 @@ def test_setup_page_shows_ledger_management_method_and_related_controls():
     assert "個人情報保護教育" in response.text
 
 
-# --- 9. 文書の情報不足を、ダッシュボードからも確認できる ---
+# --- 9. 初期設定中は文書不足todoを割り込ませず、現在工程1件だけを表示する ---
 
 
-def test_dashboard_lists_document_shortage_in_todo_items():
+def test_dashboard_hides_document_shortage_todo_while_setup_is_in_progress():
     _submit_answers(has_employees=True)
     target = intake_demo_state.get_state().candidates[0]
     client.post(f"/setup/candidates/{target.id}/confirm")
 
     response = client.get("/")
 
-    assert "個人情報管理台帳" in response.text
-    assert "入力が不足しています" in response.text
+    assert "今やること　1件" in response.text
+    assert "個人情報台帳" in response.text
+    assert "文書：個人情報管理台帳の入力が不足しています。" not in response.text
 
 
 # --- 10. 利用者向け画面に不必要な「setup」表記が残っていない ---
