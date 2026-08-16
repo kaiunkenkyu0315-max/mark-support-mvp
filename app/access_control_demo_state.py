@@ -116,30 +116,78 @@ def reset_state() -> AccessControlDemoState:
     return _state
 
 
-def complete_missing_account_reviews() -> None:
-    """未確認のアカウントを、すべて確認済み（必要）にする（操作1）。"""
+def complete_missing_account_reviews(
+    *,
+    reviewed_on: str | None = None,
+    reviewed_by: str | None = None,
+    review_method: str | None = None,
+    decisions: dict[int, bool] | None = None,
+) -> None:
+    """未確認アカウントの要否確認事実を登録する。
+
+    decisions が省略された旧デモ操作は後方互換のため全件「必要」とする。
+    通常UIでは未確認アカウントごとの要否判断を渡す。
+    """
+
+    default_date = reviewed_on or "2026-04-01"
+    default_reviewer = (reviewed_by or "Pマーク担当者").strip()
+    default_method = (review_method or "所属・在籍情報との照合").strip()
 
     for account in _state.accounts:
-        if account.review_status == AccountReviewStatus.PENDING:
-            account.review_status = AccountReviewStatus.CONFIRMED
-            account.necessary = True
+        if account.review_status != AccountReviewStatus.PENDING:
+            continue
+        if decisions is not None and account.id not in decisions:
+            continue
+        account.review_status = AccountReviewStatus.CONFIRMED
+        account.necessary = decisions.get(account.id, True) if decisions is not None else True
+        account.reviewed_on = default_date
+        account.reviewed_by = default_reviewer
+        account.review_method = default_method
 
 
-def remove_unnecessary_accounts() -> None:
-    """不要と判定済みで未削除のアカウントを、すべて削除済みにする（操作2）。"""
+def remove_unnecessary_accounts(
+    *,
+    removal_date: str | None = None,
+    removed_by: str | None = None,
+    removal_evidence: str | None = None,
+) -> None:
+    """不要と判定済みで未削除のアカウントについて削除記録を登録する。"""
+
+    default_date = removal_date or "2026-04-02"
+    default_operator = (removed_by or "システム管理担当者").strip()
+    default_evidence = (removal_evidence or "アカウント削除記録").strip()
 
     for account in _state.accounts:
         if account.necessary is False and not account.removed:
             account.removed = True
+            account.removal_date = default_date
+            account.removed_by = default_operator
+            account.removal_evidence = default_evidence
 
 
-def complete_review_cycle() -> None:
-    """権限レビューを実施済みにする（操作3）。"""
+def complete_review_cycle(
+    *,
+    review_date: str | None = None,
+    reviewer_name: str | None = None,
+    review_method: str | None = None,
+    review_evidence: str | None = None,
+) -> None:
+    """権限レビューの実施記録を登録する。"""
 
     _state.cycle.review_completed = True
+    _state.cycle.review_date = review_date or "2026-04-03"
+    _state.cycle.reviewer_name = (reviewer_name or "Pマーク担当者").strip()
+    _state.cycle.review_method = (review_method or "権限一覧との照合").strip()
+    _state.cycle.review_evidence = (review_evidence or "アクセス権限レビュー記録").strip()
 
 
-def approve_review_cycle() -> None:
-    """実施結果を承認済みにする（操作4）。"""
+def approve_review_cycle(
+    *,
+    approved_by: str | None = None,
+    approved_at: str | None = None,
+) -> None:
+    """権限レビュー結果の承認記録を登録する。"""
 
     _state.cycle.approved = True
+    _state.cycle.approved_by = (approved_by or "個人情報保護管理者").strip()
+    _state.cycle.approved_at = approved_at or "2026-04-04"
