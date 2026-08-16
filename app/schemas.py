@@ -73,25 +73,39 @@ class TrainingControl(BaseModel):
 
 
 class TrainingPlan(BaseModel):
-    """教育管理策に基づく、年度ごとの実施計画・実施結果（事実データ）。"""
+    """教育管理策に基づく、年度ごとの実施計画・実施結果（事実データ）。
+
+    MVP初期版では教材証跡と承認をboolで保持していたが、実運用で説明できる
+    記録に近づけるため、実施日・方法・教材名・実施責任者・理解度確認方法・
+    承認者・承認日も保持する。既存boolは判定互換のため残す。
+    """
 
     id: int
     title: str
     fiscal_year: int
     control_id: int
+    execution_date: str | None = None
+    delivery_method: str | None = None
+    material_name: str | None = None
+    instructor_name: str | None = None
+    comprehension_method: str | None = None
     material_evidence_registered: bool
     approved: bool
+    approved_by: str | None = None
+    approved_at: str | None = None
 
 
 class TrainingRecord(BaseModel):
     """従業者ごとの受講記録（事実データ）。
 
+    completed_on は受講済みという事実の根拠となる日付を保持する。
     comprehension_result が None の場合は「未登録」であり、
     「登録されていて結果が不良」という状態とは区別する。
     """
 
     employee_id: int
     completed: bool
+    completed_on: str | None = None
     comprehension_result: ComprehensionResult | None = None
 
 
