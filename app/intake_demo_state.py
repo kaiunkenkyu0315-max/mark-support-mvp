@@ -187,6 +187,26 @@ def exclude_candidate(candidate_id: int) -> None:
     _recalculate_risks()
 
 
+def decide_candidates(decisions: dict[int, bool]) -> None:
+    """個人情報候補の「はい／いいえ」を一括で保存する。
+
+    True は取り扱っている（confirmed）、False は取り扱っていない（excluded）。
+    複数件を更新した後にリスク・管理策候補を1回だけ再計算し、STEP2の一括入力で
+    候補件数分の再計算が走らないようにする。
+    """
+
+    for candidate in _state.candidates:
+        if candidate.id not in decisions:
+            continue
+        candidate.status = (
+            PersonalInformationCandidateStatus.CONFIRMED
+            if decisions[candidate.id]
+            else PersonalInformationCandidateStatus.EXCLUDED
+        )
+        candidate.needs_review = False
+    _recalculate_risks()
+
+
 def update_ledger_entry(
     candidate_id: int,
     *,
@@ -231,7 +251,7 @@ def confirm_risk(risk_candidate_id: int) -> None:
 
 
 def exclude_risk(risk_candidate_id: int) -> None:
-    """リスク候補について、利用者が「該当しない」と判断する。"""
+    """リスク候補について「該当しない」と利用者が判断する。"""
 
     for risk in _state.risks:
         if risk.id == risk_candidate_id:
