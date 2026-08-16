@@ -156,7 +156,7 @@ def _render_operational_section(data: DashboardData) -> str:
 def _render_todo_section(data: DashboardData) -> str:
     if not data.todo_items:
         return """
-        <section>
+        <section class="todo-section">
           <h2>今やること</h2>
           <p class="todo-empty complete">対応が必要な項目はありません。</p>
         </section>
@@ -173,7 +173,7 @@ def _render_todo_section(data: DashboardData) -> str:
     )
 
     return f"""
-    <section>
+    <section class="todo-section">
       <h2>今やること　{data.todo_count}件</h2>
       <ul class="todo-list">{items}</ul>
     </section>
@@ -197,6 +197,7 @@ def render_dashboard_page(app_name: str, data: DashboardData) -> str:
     .tagline {{ color: #555; margin-top: 0; }}
     section {{ margin-bottom: 2rem; }}
     section > p {{ color: #555; }}
+    .todo-section {{ margin-top: 1.25rem; }}
     .summary-grid {{
       display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;
     }}
@@ -224,9 +225,9 @@ def render_dashboard_page(app_name: str, data: DashboardData) -> str:
   <h1>{_escape(app_name)}</h1>
   <p class="tagline">Pマーク取得・運用の準備状況を、ひとつの画面で確認できます。</p>
 
+  {_render_todo_section(data)}
   {_render_preparation_section(data)}
   {_render_operational_section(data)}
-  {_render_todo_section(data)}
 </body>
 </html>
 """
