@@ -65,9 +65,9 @@ def test_vendor_overview_shows_all_steps_but_only_current_record_form():
 
     assert "委託先管理の全体工程" in response.text
     assert "全体進捗：0 / 3 工程 完了" in response.text
-    assert "1. 初回評価" in response.text
-    assert "2. 契約確認" in response.text
-    assert "3. 定期評価" in response.text
+    assert "<strong>初回評価</strong>" in response.text
+    assert "<strong>契約確認</strong>" in response.text
+    assert "<strong>定期評価</strong>" in response.text
     assert "2 / 3社 適格確認済み" in response.text
     assert "2 / 3社 確認済み" in response.text
     assert "2 / 3社 有効" in response.text
