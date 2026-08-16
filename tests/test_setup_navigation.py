@@ -40,13 +40,13 @@ def test_personal_information_candidates_and_decision_actions_are_same_step():
 
     assert "STEP 2　個人情報確認" in response.text
     assert "STEP 2　個人情報候補" not in response.text
-    assert 'action="/setup/candidates/1/confirm"' in response.text
-    assert 'action="/setup/candidates/1/exclude"' in response.text
+    assert 'action="/setup/candidates/decide"' in response.text
+    assert "取り扱っていますか？" in response.text
 
     step2_pos = response.text.index('id="step2"')
-    confirm_pos = response.text.index('action="/setup/candidates/1/confirm"')
+    decide_pos = response.text.index('action="/setup/candidates/decide"')
     step3_pos = response.text.index('id="step3"')
-    assert step2_pos < confirm_pos < step3_pos
+    assert step2_pos < decide_pos < step3_pos
 
 
 def test_each_setup_step_has_back_to_top_link():
