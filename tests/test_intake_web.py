@@ -99,7 +99,7 @@ def test_confirming_candidate_moves_it_into_ledger():
     response = client.post(f"/setup/candidates/{target.id}/confirm")
 
     assert response.status_code == 200
-    assert "確認済み個人情報" in response.text
+    assert "STEP 3　個人情報台帳" in response.text
 
 
 def test_case14_reset_restores_unanswered_state():
