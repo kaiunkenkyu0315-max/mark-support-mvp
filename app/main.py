@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from app import access_control_demo_state, demo_state, intake_demo_state, paper_demo_state, vendor_demo_state
+from app import (
+    access_control_demo_state,
+    demo_state,
+    intake_demo_state,
+    paper_demo_state,
+    pms_review_demo_state,
+    vendor_demo_state,
+)
 from app.access_control import evaluate_access_control
 from app.access_control_routes import router as access_control_router
 from app.dashboard import TodoItem, build_dashboard_data
@@ -15,6 +22,8 @@ from app.education_routes import router as education_router
 from app.intake_routes import router as intake_router
 from app.paper import evaluate_paper_management
 from app.paper_routes import router as paper_router
+from app.pms_review import evaluate_pms_review
+from app.pms_review_routes import router as pms_review_router
 from app.setup_progress import get_effective_setup_status
 from app.vendor_routes import router as vendor_router
 from app.vendors import evaluate_vendors
@@ -27,6 +36,7 @@ app.include_router(education_router)
 app.include_router(vendor_router)
 app.include_router(access_control_router)
 app.include_router(paper_router)
+app.include_router(pms_review_router)
 app.include_router(document_router)
 app.include_router(dev_router)
 
@@ -38,11 +48,7 @@ def health() -> dict[str, str]:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    """管理者ダッシュボード（トップページ）。
-
-    各既存モジュールの状態・評価結果をDashboardDataへ集約し、トップ表示では
-    管理領域ごとにtodoを1件へ絞ったうえで、Pマーク取得の全体計画を最上位の森として示す。
-    """
+    """管理者ダッシュボード（トップページ）。"""
 
     intake_state = intake_demo_state.get_state()
     setup_status = get_effective_setup_status(intake_state)
@@ -64,6 +70,7 @@ def index() -> str:
 
     paper_state = paper_demo_state.get_state()
     paper_result = evaluate_paper_management(paper_state.control, paper_state.status)
+    pms_review_result = evaluate_pms_review(pms_review_demo_state.get_state())
 
     documents = get_current_documents()
 
@@ -79,7 +86,6 @@ def index() -> str:
         paper_result=paper_result,
     )
 
-    # STEP0だけ保存済みの場合は、次の工程を明確にSTEP1へ案内する。
     if setup_status.value == "in_progress" and not intake_state.answers_submitted:
         dashboard_data.todo_items = [
             TodoItem(
@@ -89,8 +95,29 @@ def index() -> str:
             )
         ]
 
-    # トップでは同じ管理領域の不足を複数並べず、各領域の詳細画面へ降りる入口にする。
+    # 採用済み管理策の運用と文書準備が整った後は、PMS評価・改善を次工程として案内する。
+    adopted_areas = [area for area in dashboard_data.operational_areas if area.adopted]
+    operations_complete = bool(adopted_areas) and all(
+        area.css_class == "compliant" for area in adopted_areas
+    )
+    if (
+        setup_status.value == "complete"
+        and dashboard_data.documents_draft_count == 0
+        and operations_complete
+        and not pms_review_result.complete
+    ):
+        current_issue = next((issue for issue in pms_review_result.issues if issue.rule_id != "MR-001"), None)
+        if current_issue is None:
+            current_issue = next(iter(pms_review_result.issues), None)
+        dashboard_data.todo_items.append(
+            TodoItem(
+                area="PMS評価・改善",
+                message=current_issue.message if current_issue else "内部監査・是正・マネジメントレビューを確認してください。",
+                link="/pms-review",
+            )
+        )
+
     focus_dashboard_todos(dashboard_data)
 
     html = render_dashboard_page(APP_NAME, dashboard_data)
-    return enhance_dashboard_with_plan(html, dashboard_data)
+    return enhance_dashboard_with_plan(html, dashboard_data, pms_review_result)
