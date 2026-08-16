@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import intake_demo_state
 from app.intake_schemas import QuestionnaireAnswers
-from app.intake_view import render_setup_page
+from app.intake_step2_batch_view import render_setup_page_with_batch_step2
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
@@ -33,7 +33,7 @@ def _parse_tristate_bool(value: object) -> bool | None:
 
 def _render_current_page() -> str:
     state = intake_demo_state.get_state()
-    return render_setup_page(state)
+    return render_setup_page_with_batch_step2(state)
 
 
 @router.get("", response_class=HTMLResponse)
@@ -47,19 +47,39 @@ async def submit_answers(request: Request) -> RedirectResponse:
     values = {field: form.get(field) == "yes" for field, _ in intake_demo_state.QUESTIONS}
     answers = QuestionnaireAnswers(**values)
     intake_demo_state.submit_answers(answers)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step2", status_code=303)
+
+
+@router.post("/candidates/decide")
+async def decide_candidates(request: Request) -> RedirectResponse:
+    """STEP2の個人情報候補をまとめて保存し、次のSTEPへ進む。"""
+
+    form = await request.form()
+    decisions: dict[int, bool] = {}
+    for candidate in intake_demo_state.get_state().candidates:
+        value = form.get(f"candidate_{candidate.id}")
+        if value == "yes":
+            decisions[candidate.id] = True
+        elif value == "no":
+            decisions[candidate.id] = False
+    intake_demo_state.decide_candidates(decisions)
+    return RedirectResponse(url="/setup#step3", status_code=303)
 
 
 @router.post("/candidates/{candidate_id}/confirm")
 def confirm_candidate(candidate_id: int) -> RedirectResponse:
+    """既存互換用。通常UIでは一括回答を使用する。"""
+
     intake_demo_state.confirm_candidate(candidate_id)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step2", status_code=303)
 
 
 @router.post("/candidates/{candidate_id}/exclude")
 def exclude_candidate(candidate_id: int) -> RedirectResponse:
+    """既存互換用。通常UIでは一括回答を使用する。"""
+
     intake_demo_state.exclude_candidate(candidate_id)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step2", status_code=303)
 
 
 @router.post("/candidates/{candidate_id}/ledger")
@@ -76,19 +96,19 @@ async def update_ledger_entry(candidate_id: int, request: Request) -> RedirectRe
         disposal_method=str(form.get("disposal_method") or ""),
         responsible_role=str(form.get("responsible_role") or ""),
     )
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step3", status_code=303)
 
 
 @router.post("/risks/{risk_candidate_id}/confirm")
 def confirm_risk(risk_candidate_id: int) -> RedirectResponse:
     intake_demo_state.confirm_risk(risk_candidate_id)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step4", status_code=303)
 
 
 @router.post("/risks/{risk_candidate_id}/exclude")
 def exclude_risk(risk_candidate_id: int) -> RedirectResponse:
     intake_demo_state.exclude_risk(risk_candidate_id)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step4", status_code=303)
 
 
 @router.post("/risks/{risk_candidate_id}/evaluate")
@@ -96,13 +116,13 @@ def update_risk_evaluation(
     risk_candidate_id: int, impact: int = Form(...), likelihood: int = Form(...)
 ) -> RedirectResponse:
     intake_demo_state.update_risk_evaluation(risk_candidate_id, impact, likelihood)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step4", status_code=303)
 
 
 @router.post("/controls/{control_id}/adopt")
 def adopt_control(control_id: str) -> RedirectResponse:
     intake_demo_state.adopt_control(control_id)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step5", status_code=303)
 
 
 @router.post("/controls/{control_id}/not-applicable")
@@ -111,7 +131,7 @@ def mark_control_not_applicable(control_id: str, reason: str = Form(...)) -> Red
     if reason:
         # 非適用の理由は必須とする。空欄の場合は状態を変更せず、そのまま画面に戻す。
         intake_demo_state.mark_control_not_applicable(control_id, reason)
-    return RedirectResponse(url="/setup", status_code=303)
+    return RedirectResponse(url="/setup#step5", status_code=303)
 
 
 @router.post("/reset")
