@@ -32,6 +32,20 @@ ACTION_MESSAGES: dict[str, str] = {
 }
 
 
+def _require_explicit_account_decisions(html: str) -> str:
+    """棚卸しの要否を初期値で確定させず、利用者の明示判断を必須にする。
+
+    旧デモのサーバー側POST互換は維持しつつ、通常UIでは各未確認アカウントについて
+    「選択してください」から必要／不要を明示的に選ばないと送信できないようにする。
+    """
+
+    return html.replace(
+        '<option value="necessary" selected>必要</option>',
+        '<option value="" selected disabled>選択してください</option>'
+        '<option value="necessary">必要</option>',
+    )
+
+
 def _render_current_page(flash: str | None = None) -> str:
     if not operational_control_is_adopted(CONTROL_ID):
         return render_inactive_operation_page(title=PAGE_TITLE, control_id=CONTROL_ID)
@@ -40,7 +54,8 @@ def _render_current_page(flash: str | None = None) -> str:
     result = evaluate_access_control(state.accounts, state.control, state.cycle)
     control_suggestions = intake_demo_state.get_state().control_suggestions
     html = render_access_control_page(state, result, control_suggestions, flash=flash)
-    return enhance_access_control_page(html, state, result)
+    html = enhance_access_control_page(html, state, result)
+    return _require_explicit_account_decisions(html)
 
 
 def _redirect_with_flash(action_key: str) -> RedirectResponse:
