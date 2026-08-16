@@ -40,6 +40,14 @@ class Account(BaseModel):
     removed: bool = False
     """necessary=Falseの不要アカウントについて、実際に削除が完了しているか。"""
 
+    # 棚卸し・削除を後から説明するための記録。
+    reviewed_on: str | None = None
+    reviewed_by: str | None = None
+    review_method: str | None = None
+    removal_date: str | None = None
+    removed_by: str | None = None
+    removal_evidence: str | None = None
+
 
 class AccessControl(BaseModel):
     """アクセス権限管理策の実施ルール（事実データ）。
@@ -67,6 +75,13 @@ class AccessReviewCycle(BaseModel):
     control_id: int
     review_completed: bool
     approved: bool
+
+    review_date: str | None = None
+    reviewer_name: str | None = None
+    review_method: str | None = None
+    review_evidence: str | None = None
+    approved_by: str | None = None
+    approved_at: str | None = None
 
 
 class AccessEvaluationStatus(str, Enum):
