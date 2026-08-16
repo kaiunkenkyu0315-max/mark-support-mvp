@@ -43,7 +43,7 @@ def test_acquisition_plan_is_the_top_level_forest_before_todo_details():
     assert plan_index < todo_index < preparation_index
 
 
-def test_operational_review_preset_places_current_location_at_operations():
+def test_operational_review_preset_places_current_location_at_operations_and_groups_todos():
     _reset_all()
     load_operational_review_preset()
     response = client.get("/")
@@ -52,10 +52,11 @@ def test_operational_review_preset_places_current_location_at_operations():
     assert response.status_code == 200
     assert "実装範囲進捗：2 / 3 工程 完了" in response.text
     assert "現在地：3. 採用管理策の運用" in response.text
-    assert "教育管理" in response.text
-    assert "委託先管理" in response.text
-    assert "アクセス権限管理" in response.text
-    assert "紙媒体管理" in response.text
+    assert "今やること　4件" in response.text
+    assert response.text.count("教育管理：") == 1
+    assert response.text.count("委託先管理：") == 1
+    assert response.text.count("アクセス権限管理：") == 1
+    assert response.text.count("紙媒体管理：") == 1
 
 
 def test_acquisition_plan_marks_mvp_scope_complete_after_all_operations_are_resolved():
