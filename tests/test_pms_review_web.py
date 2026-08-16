@@ -1,18 +1,36 @@
 from fastapi.testclient import TestClient
 
-from app import pms_review_demo_state
+from app import (
+    access_control_demo_state,
+    company_profile,
+    demo_state,
+    intake_demo_state,
+    paper_demo_state,
+    pms_review_demo_state,
+    vendor_demo_state,
+)
 from app.dev_preset import load_pms_review_preset
 from app.main import app
 
 client = TestClient(app)
 
 
-def setup_function():
+def _reset_all() -> None:
+    company_profile.reset_state()
+    intake_demo_state.reset_state()
+    demo_state.reset_state()
+    vendor_demo_state.reset_state()
+    access_control_demo_state.reset_state()
+    paper_demo_state.reset_state()
     pms_review_demo_state.reset_state()
+
+
+def setup_function():
+    _reset_all()
 
 
 def teardown_function():
-    pms_review_demo_state.reset_state()
+    _reset_all()
 
 
 def _load_review_ready_state() -> None:
