@@ -185,6 +185,18 @@ def _render_todo_section(data: DashboardData) -> str:
     """
 
 
+def _render_dev_tools() -> str:
+    return """
+    <section class="dev-tools">
+      <h2>開発用ショートカット</h2>
+      <p>サーバー再起動後の手入力を省くため、初期設定完了・主要管理策採用済み・運用検証初期状態を一括で作ります。</p>
+      <form method="post" action="/dev/preset/operations">
+        <button type="submit">運用検証用プリセットをセット</button>
+      </form>
+    </section>
+    """
+
+
 # ---------------------------------------------------------------------------
 # ページ全体
 # ---------------------------------------------------------------------------
@@ -224,6 +236,8 @@ def render_dashboard_page(app_name: str, data: DashboardData) -> str:
     .todo-empty.complete {{
       padding: 0.75rem 1rem; background: #eefaf0; border-left: 4px solid #0a7a0a;
     }}
+    .dev-tools {{ border-top: 1px dashed #aaa; padding-top: 1rem; color: #666; }}
+    .dev-tools h2 {{ font-size: 1rem; }}
   </style>
 </head>
 <body>
@@ -233,6 +247,7 @@ def render_dashboard_page(app_name: str, data: DashboardData) -> str:
   {_render_todo_section(data)}
   {_render_preparation_section(data)}
   {_render_operational_section(data)}
+  {_render_dev_tools()}
 </body>
 </html>
 """
