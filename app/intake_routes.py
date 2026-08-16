@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import company_profile, intake_demo_state
 from app.intake_schemas import QuestionnaireAnswers
 from app.intake_step2_batch_view import render_setup_page_with_batch_step2
+from app.setup_step_gating import apply_setup_step_gating
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
@@ -29,7 +30,8 @@ def _parse_tristate_bool(value: object) -> bool | None:
 
 def _render_current_page() -> str:
     state = intake_demo_state.get_state()
-    return render_setup_page_with_batch_step2(state)
+    html = render_setup_page_with_batch_step2(state)
+    return apply_setup_step_gating(html, state)
 
 
 @router.get("", response_class=HTMLResponse)
