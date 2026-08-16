@@ -16,6 +16,7 @@ from app.intake_step2_batch_view import render_setup_page_with_batch_step2
 from app.risk_batch_view import apply_risk_batch_view
 from app.risk_schemas import RiskCandidateStatus
 from app.setup_step_gating import apply_setup_step_gating
+from app.step6_hub_view import apply_step6_hub
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
@@ -34,7 +35,8 @@ def _render_current_page() -> str:
     state = intake_demo_state.get_state()
     html = render_setup_page_with_batch_step2(state)
     html = apply_risk_batch_view(html, state)
-    return apply_setup_step_gating(html, state)
+    html = apply_setup_step_gating(html, state)
+    return apply_step6_hub(html, state)
 
 
 @router.get("", response_class=HTMLResponse)
