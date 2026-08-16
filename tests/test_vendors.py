@@ -176,3 +176,27 @@ def test_case8_becomes_compliant_after_resolving_all_issues():
 
     assert second_result.status == VendorEvaluationStatus.COMPLIANT
     assert second_result.issues == []
+
+
+def test_failed_initial_assessment_triggers_ven003():
+    vendors = [make_vendor(1)]
+    assessments = [
+        VendorAssessment(
+            vendor_id=1,
+            initial_assessment_completed=True,
+            initial_assessment_date=TODAY,
+            initial_assessment_result=AssessmentResult.FAILED,
+            latest_assessment_date=TODAY - timedelta(days=10),
+            next_assessment_due=TODAY + timedelta(days=300),
+            assessment_result=AssessmentResult.PASSED,
+        )
+    ]
+    contracts = [make_contract(1, confirmed=True)]
+    control = make_control()
+
+    result = evaluate_vendors(vendors, control, assessments, contracts, today=TODAY)
+
+    assert result.status == VendorEvaluationStatus.NEEDS_ACTION
+    issue = next(i for i in result.issues if i.rule_id == "VEN-003")
+    assert issue.vendor_ids == [1]
+    assert not any(i.rule_id == "VEN-001" for i in result.issues)
