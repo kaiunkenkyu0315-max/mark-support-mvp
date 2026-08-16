@@ -55,7 +55,7 @@ def operational_status(
         return (
             "未提示",
             "not-started",
-            "この管理策は、現在の初期設定内容では候補として提示されていません。業務回答を変更すると候補になる場合があります。",
+            "この管理策は、現在の初期設定内容では候補として提示されていません。個人情報・リスクの確認を進めるか、必要に応じて業務回答を見直すと候補になる場合があります。",
         )
     if suggestion.status == ControlDecisionStatus.SUGGESTED:
         return (
