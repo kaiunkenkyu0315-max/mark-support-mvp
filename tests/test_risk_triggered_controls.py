@@ -58,6 +58,18 @@ def _confirm_risk(risk_id: str) -> None:
     client.post(f"/setup/risks/{risk.id}/confirm")
 
 
+def _prepare_adopted_access_control() -> None:
+    _submit_answers(uses_external_cloud_services=True)
+    _confirm_risk("RISK-001")
+    client.post("/setup/controls/access_control/adopt")
+
+
+def _prepare_adopted_paper_management() -> None:
+    _submit_answers(stores_personal_data_on_paper=True)
+    _confirm_risk("RISK-002")
+    client.post("/setup/controls/paper_management/adopt")
+
+
 # --- 1. RISK-001 confirmed → アクセス権限管理をsuggest ---
 
 
@@ -119,9 +131,7 @@ def test_confirming_risk_alone_does_not_adopt_control():
 
 
 def test_adopting_access_control_reflects_in_operation_page_and_document():
-    _submit_answers(uses_external_cloud_services=True)
-    _confirm_risk("RISK-001")
-    client.post("/setup/controls/access_control/adopt")
+    _prepare_adopted_access_control()
 
     operation_response = client.get("/access-control")
     assert "採用済み" in operation_response.text
@@ -132,9 +142,7 @@ def test_adopting_access_control_reflects_in_operation_page_and_document():
 
 
 def test_adopting_paper_management_reflects_in_operation_page_and_document():
-    _submit_answers(stores_personal_data_on_paper=True)
-    _confirm_risk("RISK-002")
-    client.post("/setup/controls/paper_management/adopt")
+    _prepare_adopted_paper_management()
 
     operation_response = client.get("/paper")
     assert "採用済み" in operation_response.text
@@ -181,6 +189,7 @@ def test_paper_management_not_applicable_does_not_generate_document():
 
 
 def test_access_control_page_shows_initial_shortage():
+    _prepare_adopted_access_control()
     response = client.get("/access-control")
 
     for rule_id in ("ACC-001", "ACC-002", "ACC-003", "ACC-004"):
@@ -188,6 +197,7 @@ def test_access_control_page_shows_initial_shortage():
 
 
 def test_access_control_becomes_compliant_after_resolving_shortage():
+    _prepare_adopted_access_control()
     client.post("/access-control/actions/complete-account-reviews")
     client.post("/access-control/actions/remove-unnecessary-accounts")
     client.post("/access-control/actions/complete-review-cycle")
@@ -201,6 +211,7 @@ def test_access_control_becomes_compliant_after_resolving_shortage():
 
 
 def test_paper_page_shows_initial_shortage():
+    _prepare_adopted_paper_management()
     response = client.get("/paper")
 
     for rule_id in ("PAP-001", "PAP-002", "PAP-003", "PAP-004"):
@@ -208,6 +219,7 @@ def test_paper_page_shows_initial_shortage():
 
 
 def test_paper_becomes_compliant_after_resolving_shortage():
+    _prepare_adopted_paper_management()
     client.post("/paper/actions/confirm-storage-lock")
     client.post("/paper/actions/define-take-out-rule")
     client.post("/paper/actions/confirm-disposal")
@@ -232,6 +244,7 @@ def test_access_control_page_does_not_contradict_setup_not_applicable_decision()
 
     assert "非適用" in response.text
     assert "採用済み" not in response.text
+    assert "現在、この管理策は運用対象ではありません。" in response.text
 
 
 def test_paper_page_does_not_contradict_setup_not_applicable_decision():
@@ -246,15 +259,12 @@ def test_paper_page_does_not_contradict_setup_not_applicable_decision():
 
     assert "非適用" in response.text
     assert "採用済み" not in response.text
+    assert "現在、この管理策は運用対象ではありません。" in response.text
 
 
 def test_top_page_does_not_show_operating_status_for_unadopted_controls():
     """初期設定が未着手の間は、トップページで「適合／要対応」のような運用中の
-    ステータスを表示せず、「初期設定待ち」であることが分かるようにする。
-
-    初期設定を始めていない段階では、管理策が採用されなかった（未採用）のか
-    まだ判断できていないだけなのかを区別できないため、「未採用」ではなく
-    中立な「初期設定待ち」を表示する。"""
+    ステータスを表示せず、「初期設定待ち」であることが分かるようにする。"""
 
     response = client.get("/")
 
@@ -266,9 +276,7 @@ def test_top_page_does_not_show_operating_status_for_unadopted_controls():
 
 
 def test_top_page_shows_operating_status_once_adopted():
-    _submit_answers(uses_external_cloud_services=True)
-    _confirm_risk("RISK-001")
-    client.post("/setup/controls/access_control/adopt")
+    _prepare_adopted_access_control()
 
     response = client.get("/")
 
