@@ -139,12 +139,11 @@ def test_education_page_does_not_contradict_setup_not_applicable_decision():
         data={"reason": "対象業務がないため"},
     )
 
-    # /education の運用画面（TrainingControlは常時稼働扱いの実施ルールを持つのみ）は、
-    # 独自の「採用中」判断を持たず、setupの非適用判断をそのまま表示する。
     response = client.get("/education")
 
     assert "非適用" in response.text
     assert "採用済み" not in response.text
+    assert "現在、この管理策は運用対象ではありません。" in response.text
 
 
 def test_education_page_shows_adopted_when_setup_says_adopted():
@@ -168,6 +167,7 @@ def test_vendor_page_does_not_contradict_setup_not_applicable_decision():
 
     assert "非適用" in response.text
     assert "採用済み" not in response.text
+    assert "現在、この管理策は運用対象ではありません。" in response.text
 
 
 def test_vendor_page_shows_adopted_when_setup_says_adopted():
@@ -181,10 +181,11 @@ def test_vendor_page_shows_adopted_when_setup_says_adopted():
 
 
 def test_education_and_documents_pages_agree_when_never_answered_in_setup():
-    """setupで一度も回答していない状態では、education・documentsとも「未確定」で一致する。"""
+    """初期設定で未提示の管理策は、運用対象にせず文書も未生成とする。"""
 
     education_response = client.get("/education")
-    assert "未確認（初期設定で未回答）" in education_response.text
+    assert "未提示" in education_response.text
+    assert "現在、この管理策は運用対象ではありません。" in education_response.text
 
     document_response = client.get("/documents/education_procedure")
     assert "未生成" in document_response.text
