@@ -1,6 +1,6 @@
 """初期設定画面の補助UI。
 
-- STEP0: 会社情報を共通データとして入力
+- STEP0: 会社・PMS基本情報を共通データとして入力
 - STEP2: 個人情報候補を「はい／いいえ」で一括回答
 - STEP3: 個人情報台帳を1件ずつ開く段階表示
 
@@ -13,6 +13,7 @@ from __future__ import annotations
 from html import escape
 
 from app import company_profile
+from app.company_profile_view import render_company_section as _render_shared_company_section
 from app.intake_demo_state import IntakeDemoState
 from app.intake_schemas import PersonalInformationCandidateStatus
 from app.intake_view import render_setup_page
@@ -141,6 +142,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
 def _render_company_section() -> str:
+    """旧STEP0描画（互換用）。通常画面では company_profile_view を使用する。"""
     profile = company_profile.get_state()
     status = "保存済み" if profile.configured else "未保存（現在はデモ初期値）"
     return f"""
@@ -226,11 +228,11 @@ def render_step2_batch_section(state: IntakeDemoState) -> str:
 
 
 def _inject_step0(html: str) -> str:
-    """工程ナビゲーションとSTEP1の直前に会社情報を追加する。"""
+    """工程ナビゲーションとSTEP1の直前に会社・PMS基本情報を追加する。"""
 
-    step0_nav = '<li><a href="#step0">STEP0 会社情報</a></li>'
+    step0_nav = '<li><a href="#step0">STEP0 会社・PMS基本情報</a></li>'
     html = html.replace('<ol class="stepper">', f'<ol class="stepper">{step0_nav}', 1)
-    html = html.replace(_STEP1_START, _render_company_section() + "\n" + _STEP1_START, 1)
+    html = html.replace(_STEP1_START, _render_shared_company_section() + "\n" + _STEP1_START, 1)
     return html
 
 
@@ -243,7 +245,7 @@ def _add_progressive_disclosure(html: str) -> str:
 
 
 def render_setup_page_with_batch_step2(state: IntakeDemoState) -> str:
-    """会社情報・STEP2一括回答・STEP3段階表示を統合した初期設定画面。"""
+    """会社・PMS基本情報・STEP2一括回答・STEP3段階表示を統合した初期設定画面。"""
 
     html = _inject_step0(render_setup_page(state))
     start = html.find(_STEP2_START)
