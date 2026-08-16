@@ -1,16 +1,32 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import access_control_demo_state
+from app import access_control_demo_state, intake_demo_state
+from app.intake_schemas import ControlDecisionStatus, ControlSuggestion
 from app.main import app
 
 client = TestClient(app)
 
 
+def _adopt_access_control() -> None:
+    intake_demo_state.get_state().control_suggestions.append(
+        ControlSuggestion(
+            control_id="access_control",
+            name="アクセス権限管理",
+            reason="テスト用",
+            status=ControlDecisionStatus.ADOPTED,
+            link_url="/access-control",
+        )
+    )
+
+
 @pytest.fixture(autouse=True)
 def reset_access_control_state():
+    intake_demo_state.reset_state()
+    _adopt_access_control()
     access_control_demo_state.reset_state()
     yield
+    intake_demo_state.reset_state()
     access_control_demo_state.reset_state()
 
 
