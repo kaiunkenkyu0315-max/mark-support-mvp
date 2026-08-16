@@ -6,6 +6,7 @@ from app.access_control import evaluate_access_control
 from app.access_control_routes import router as access_control_router
 from app.dashboard import TodoItem, build_dashboard_data
 from app.dashboard_view import render_dashboard_page
+from app.dev_routes import router as dev_router
 from app.document_routes import get_current_documents
 from app.document_routes import router as document_router
 from app.education import evaluate_training
@@ -26,6 +27,7 @@ app.include_router(vendor_router)
 app.include_router(access_control_router)
 app.include_router(paper_router)
 app.include_router(document_router)
+app.include_router(dev_router)
 
 
 @app.get("/health")
