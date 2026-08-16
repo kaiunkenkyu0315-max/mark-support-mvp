@@ -1,8 +1,8 @@
 """教育管理MVPのデモ用インメモリ状態。
 
-サーバー起動時に固定のデモデータ（株式会社サンプル・従業者50名）を構築する。
-ブラウザからの操作はこのモジュールが保持するインメモリ状態のみを変更し、
-DBは使用しない。サーバー再起動で初期状態に戻る。
+会社名・従業者数・対象年度は app.company_profile を共通の正本として参照する。
+教育管理側では、その会社情報を前提に従業者・教育計画・教育記録のデモ状態を構築する。
+ブラウザからの操作はインメモリ状態のみを変更し、DBは使用しない。
 
 事実データ（Employee / TrainingRecord 等）に評価情報は持たせない。
 ここで行うのは事実データの登録・更新のみであり、適合／要対応の判定は
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app import company_profile
 from app.schemas import (
     Company,
     ComprehensionResult,
@@ -32,9 +33,8 @@ ALL_ROLES = [
     EmployeeRole.GENERAL_EMPLOYEE,
 ]
 
-# 初期デモ状態で、意図的に未受講のままにしておく従業員ID（2名）。
+# 50名の既定デモでは従来どおり、49・50を未受講、46〜48を理解度未登録にする。
 NOT_COMPLETED_EMPLOYEE_IDS = {49, 50}
-# 初期デモ状態で、受講済みだが理解度確認が未登録のままの従業員ID（3名）。
 MISSING_COMPREHENSION_EMPLOYEE_IDS = {46, 47, 48}
 
 # 教育に関する標準規程条項のプレビュー（今回のMVPでは全文書生成はしない）。
@@ -54,42 +54,63 @@ class EducationDemoState:
     records: list[TrainingRecord]
 
 
-def _build_employees() -> list[Employee]:
-    employees = [
-        Employee(
-            id=1, name="代表 花子", role=EmployeeRole.EXECUTIVE, status=EmployeeStatus.ACTIVE
-        ),
-        Employee(
-            id=2,
-            name="個人情報保護 次郎",
-            role=EmployeeRole.PRIVACY_MANAGER,
-            status=EmployeeStatus.ACTIVE,
-        ),
-        Employee(
-            id=3,
-            name="Pマーク 担当子",
-            role=EmployeeRole.PMARK_STAFF,
-            status=EmployeeStatus.ACTIVE,
-        ),
-    ]
-    employees.extend(
+def _employee_role(employee_id: int) -> EmployeeRole:
+    if employee_id == 1:
+        return EmployeeRole.EXECUTIVE
+    if employee_id == 2:
+        return EmployeeRole.PRIVACY_MANAGER
+    if employee_id == 3:
+        return EmployeeRole.PMARK_STAFF
+    return EmployeeRole.GENERAL_EMPLOYEE
+
+
+def _employee_name(employee_id: int) -> str:
+    if employee_id == 1:
+        return "代表 花子"
+    if employee_id == 2:
+        return "個人情報保護 次郎"
+    if employee_id == 3:
+        return "Pマーク 担当子"
+    return f"一般従業員{employee_id:02d}"
+
+
+def _build_employees(employee_count: int) -> list[Employee]:
+    return [
         Employee(
             id=employee_id,
-            name=f"一般従業員{employee_id:02d}",
-            role=EmployeeRole.GENERAL_EMPLOYEE,
+            name=_employee_name(employee_id),
+            role=_employee_role(employee_id),
             status=EmployeeStatus.ACTIVE,
         )
-        for employee_id in range(4, 51)
+        for employee_id in range(1, employee_count + 1)
+    ]
+
+
+def _demo_issue_employee_ids(employee_count: int) -> tuple[set[int], set[int]]:
+    """任意人数でも教育の不足検知を確認できるよう、末尾側にデモ不足を配置する。"""
+
+    if employee_count == 50:
+        return NOT_COMPLETED_EMPLOYEE_IDS, MISSING_COMPREHENSION_EMPLOYEE_IDS
+
+    not_completed_count = min(2, employee_count)
+    not_completed = set(range(employee_count - not_completed_count + 1, employee_count + 1))
+
+    remaining = employee_count - not_completed_count
+    missing_count = min(3, remaining)
+    missing_start = remaining - missing_count + 1
+    missing_comprehension = (
+        set(range(missing_start, remaining + 1)) if missing_count > 0 else set()
     )
-    return employees
+    return not_completed, missing_comprehension
 
 
-def _build_records() -> list[TrainingRecord]:
-    records = []
-    for employee_id in range(1, 51):
-        if employee_id in NOT_COMPLETED_EMPLOYEE_IDS:
+def _build_records(employee_count: int) -> list[TrainingRecord]:
+    not_completed_ids, missing_comprehension_ids = _demo_issue_employee_ids(employee_count)
+    records: list[TrainingRecord] = []
+    for employee_id in range(1, employee_count + 1):
+        if employee_id in not_completed_ids:
             records.append(TrainingRecord(employee_id=employee_id, completed=False))
-        elif employee_id in MISSING_COMPREHENSION_EMPLOYEE_IDS:
+        elif employee_id in missing_comprehension_ids:
             records.append(TrainingRecord(employee_id=employee_id, completed=True))
         else:
             records.append(
@@ -103,9 +124,10 @@ def _build_records() -> list[TrainingRecord]:
 
 
 def build_initial_state() -> EducationDemoState:
-    """デモの初期状態（意図的に不足を残した状態）を構築する。"""
+    """現在の共通会社情報から、教育管理のデモ初期状態を構築する。"""
 
-    company = Company(id=1, name="株式会社サンプル", fiscal_year=2026)
+    profile = company_profile.get_state()
+    company = Company(id=1, name=profile.name, fiscal_year=profile.fiscal_year)
     control = TrainingControl(
         id=1,
         name="個人情報保護教育",
@@ -117,32 +139,44 @@ def build_initial_state() -> EducationDemoState:
     )
     plan = TrainingPlan(
         id=1,
-        title="2026年度 個人情報保護教育計画",
-        fiscal_year=2026,
+        title=f"{profile.fiscal_year}年度 個人情報保護教育計画",
+        fiscal_year=profile.fiscal_year,
         control_id=1,
         material_evidence_registered=False,
         approved=False,
     )
     return EducationDemoState(
         company=company,
-        employees=_build_employees(),
+        employees=_build_employees(profile.employee_count),
         control=control,
         plan=plan,
-        records=_build_records(),
+        records=_build_records(profile.employee_count),
     )
 
 
 _state: EducationDemoState = build_initial_state()
 
 
-def get_state() -> EducationDemoState:
-    """現在のデモ状態を取得する。"""
+def _matches_company_profile(state: EducationDemoState) -> bool:
+    profile = company_profile.get_state()
+    return (
+        state.company.name == profile.name
+        and state.company.fiscal_year == profile.fiscal_year
+        and len(state.employees) == profile.employee_count
+    )
 
+
+def get_state() -> EducationDemoState:
+    """現在の教育状態を取得する。会社情報が変わっていれば再構築して追随する。"""
+
+    global _state
+    if not _matches_company_profile(_state):
+        _state = build_initial_state()
     return _state
 
 
 def reset_state() -> EducationDemoState:
-    """デモ状態を初期状態へ戻す。"""
+    """現在の共通会社情報を前提に、教育デモ状態を初期化する。"""
 
     global _state
     _state = build_initial_state()
@@ -152,7 +186,8 @@ def reset_state() -> EducationDemoState:
 def complete_all_trainings() -> None:
     """未受講の従業者をすべて受講済みにする（操作1）。"""
 
-    for record in _state.records:
+    state = get_state()
+    for record in state.records:
         if not record.completed:
             record.completed = True
 
@@ -162,7 +197,8 @@ def register_missing_comprehension(
 ) -> None:
     """理解度確認が未登録の受講済み記録に、簡易値を登録する（操作2）。"""
 
-    for record in _state.records:
+    state = get_state()
+    for record in state.records:
         if record.completed and record.comprehension_result is None:
             record.comprehension_result = result
 
@@ -170,10 +206,10 @@ def register_missing_comprehension(
 def register_material_evidence() -> None:
     """教材証跡を登録済みにする（操作3）。"""
 
-    _state.plan.material_evidence_registered = True
+    get_state().plan.material_evidence_registered = True
 
 
 def approve_plan() -> None:
     """実施結果を承認済みにする（操作4）。"""
 
-    _state.plan.approved = True
+    get_state().plan.approved = True
