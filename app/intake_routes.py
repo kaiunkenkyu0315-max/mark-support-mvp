@@ -80,7 +80,13 @@ def submit_company_profile(
 @router.post("/answers")
 async def submit_answers(request: Request) -> RedirectResponse:
     form = await request.form()
+    profile = company_profile.get_state()
+
     values = {field: form.get(field) == "yes" for field, _ in intake_demo_state.QUESTIONS}
+    if profile.configured:
+        # 従業者数はSTEP0を正本とし、STEP1では同じ事実を再入力させない。
+        values["has_employees"] = profile.employee_count > 0
+
     answers = QuestionnaireAnswers(**values)
     intake_demo_state.submit_answers(answers)
     return RedirectResponse(url="/setup#step2", status_code=303)
