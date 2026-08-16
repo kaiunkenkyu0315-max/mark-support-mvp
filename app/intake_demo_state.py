@@ -100,6 +100,7 @@ def get_setup_status(state: IntakeDemoState) -> SetupStatus:
     NOT_STARTED：回答が一度も保存されていない。
     IN_PROGRESS：回答済みだが、以下のいずれかが残っている。
       - 未確認（candidate）のままの個人情報候補・リスク候補
+      - 確認済みリスクの評価が未確認
       - 未採用・非適用のいずれも判断していない管理策候補（suggested）
       - 台帳必須項目が未入力の確認済み個人情報
       - needs_review=True の項目（個人情報候補・リスク候補・管理策候補いずれか）
@@ -115,7 +116,13 @@ def get_setup_status(state: IntakeDemoState) -> SetupStatus:
         for candidate in state.candidates
     )
     unresolved_risks = any(
-        risk.status == RiskCandidateStatus.CANDIDATE or risk.needs_review for risk in state.risks
+        risk.status == RiskCandidateStatus.CANDIDATE
+        or risk.needs_review
+        or (
+            risk.status == RiskCandidateStatus.CONFIRMED
+            and not risk.evaluation_reviewed
+        )
+        for risk in state.risks
     )
     unresolved_controls = any(
         suggestion.status == ControlDecisionStatus.SUGGESTED or suggestion.needs_review
@@ -239,14 +246,17 @@ def update_ledger_entry(
 
 
 def confirm_risk(risk_candidate_id: int) -> None:
-    """リスク候補について、利用者が「該当する」と確認する。"""
+    """リスク候補について、利用者が「該当する」と確認する（既存互換用）。
+
+    旧UI・既存テストとの互換性のため、この個別操作では現在の初期評価も確認済みとして扱う。
+    通常UIでは decide_risks() → update_risk_evaluations() の2段階を使用する。
+    """
 
     for risk in _state.risks:
         if risk.id == risk_candidate_id:
             risk.status = RiskCandidateStatus.CONFIRMED
             risk.needs_review = False
-    # リスク確認済みを根拠に提示される管理策候補（例：RISK-001→アクセス権限管理）が
-    # あるため、確認操作のたびに管理策候補を再計算する。
+            risk.evaluation_reviewed = True
     _recalculate_control_suggestions()
 
 
@@ -257,18 +267,53 @@ def exclude_risk(risk_candidate_id: int) -> None:
         if risk.id == risk_candidate_id:
             risk.status = RiskCandidateStatus.EXCLUDED
             risk.needs_review = False
+            risk.evaluation_reviewed = False
+    _recalculate_control_suggestions()
+
+
+def decide_risks(decisions: dict[int, bool]) -> None:
+    """STEP4前半のリスク該当／非該当判断をまとめて保存する。
+
+    True は confirmed、False は excluded。confirmedにしたリスクは、システム初期案の
+    impact/likelihoodを保持するが、利用者が次画面で評価を確認するまでは
+    evaluation_reviewed=False とする。
+    """
+
+    for risk in _state.risks:
+        if risk.id not in decisions:
+            continue
+        if decisions[risk.id]:
+            risk.status = RiskCandidateStatus.CONFIRMED
+            risk.evaluation_reviewed = False
+        else:
+            risk.status = RiskCandidateStatus.EXCLUDED
+            risk.evaluation_reviewed = False
+        risk.needs_review = False
     _recalculate_control_suggestions()
 
 
 def update_risk_evaluation(risk_candidate_id: int, impact: int, likelihood: int) -> None:
-    """confirmedなリスクの影響度・発生可能性を、利用者が変更する。"""
+    """confirmedなリスクの影響度・発生可能性を利用者が確認・保存する。"""
 
     impact = max(_EVALUATION_MIN, min(_EVALUATION_MAX, impact))
     likelihood = max(_EVALUATION_MIN, min(_EVALUATION_MAX, likelihood))
     for risk in _state.risks:
-        if risk.id == risk_candidate_id:
+        if risk.id == risk_candidate_id and risk.status == RiskCandidateStatus.CONFIRMED:
             risk.impact = impact
             risk.likelihood = likelihood
+            risk.evaluation_reviewed = True
+
+
+def update_risk_evaluations(evaluations: dict[int, tuple[int, int]]) -> None:
+    """STEP4後半のconfirmedリスク評価をまとめて確認・保存する。"""
+
+    for risk in _state.risks:
+        if risk.status != RiskCandidateStatus.CONFIRMED or risk.id not in evaluations:
+            continue
+        impact, likelihood = evaluations[risk.id]
+        risk.impact = max(_EVALUATION_MIN, min(_EVALUATION_MAX, impact))
+        risk.likelihood = max(_EVALUATION_MIN, min(_EVALUATION_MAX, likelihood))
+        risk.evaluation_reviewed = True
 
 
 def adopt_control(control_id: str) -> None:
