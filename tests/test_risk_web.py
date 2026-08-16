@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import intake_demo_state
+from app import company_profile, intake_demo_state
 from app.main import app
 
 client = TestClient(app)
@@ -11,8 +11,10 @@ client = TestClient(app)
 def reset_intake_state():
     """各テストの前後でデモ状態を初期化し、テスト間の状態汚染を防ぐ。"""
 
+    company_profile.reset_state()
     intake_demo_state.reset_state()
     yield
+    company_profile.reset_state()
     intake_demo_state.reset_state()
 
 
@@ -27,34 +29,57 @@ ALL_YES_FORM = {
     "allows_remote_access": "yes",
 }
 
+FULL_LEDGER_FORM = {
+    "acquisition_method": "本人から直接取得",
+    "storage_method": "電子データ",
+    "storage_location": "社内サーバ",
+    "outsourced": "no",
+    "third_party_provided": "no",
+    "retention_period": "利用目的終了後5年",
+    "disposal_method": "システムから削除",
+    "responsible_role": "個人情報保護管理者",
+}
 
-def confirm_all_candidates():
-    for candidate in intake_demo_state.get_state().candidates:
+
+def confirm_all_candidates_and_fill_ledgers():
+    """STEP2〜3を完了し、STEP4の通常UIをアンロックする。"""
+
+    for candidate in list(intake_demo_state.get_state().candidates):
         client.post(f"/setup/candidates/{candidate.id}/confirm")
+        form = dict(FULL_LEDGER_FORM)
+        if candidate.outsourced is True:
+            form["outsourced"] = "yes"
+        client.post(f"/setup/candidates/{candidate.id}/ledger", data=form)
 
 
-def test_case11_setup_page_shows_risk_step_and_summary():
+def test_case11_setup_page_shows_locked_risk_step_before_ledger_completion():
     response = client.post("/setup/answers", data=ALL_YES_FORM)
 
     assert response.status_code == 200
-    assert "STEP4" in response.text
-    assert "リスク確認" in response.text
-    assert "リスク候補：" in response.text
+    assert "STEP 4　リスク確認" in response.text
+    assert "STEP3の個人情報台帳を完了すると、リスク候補を確認できるようになります。" in response.text
+    assert "リスク候補：" not in response.text
 
 
 def test_full_demo_scenario_yields_all_five_risk_candidates():
     client.post("/setup/answers", data=ALL_YES_FORM)
-    confirm_all_candidates()
+    confirm_all_candidates_and_fill_ledgers()
 
     response = client.get("/setup")
 
-    for risk_name in ["不正アクセス", "紙媒体の紛失・盗難", "委託先での漏えい・不適切な取扱い", "誤送信・誤提供", "内部者による不適切な取扱い"]:
+    for risk_name in [
+        "不正アクセス",
+        "紙媒体の紛失・盗難",
+        "委託先での漏えい・不適切な取扱い",
+        "誤送信・誤提供",
+        "内部者による不適切な取扱い",
+    ]:
         assert risk_name in response.text
 
 
 def test_confirming_and_excluding_risks_via_web():
     client.post("/setup/answers", data=ALL_YES_FORM)
-    confirm_all_candidates()
+    confirm_all_candidates_and_fill_ledgers()
     risks = intake_demo_state.get_state().risks
     to_confirm, to_exclude = risks[0], risks[1]
 
@@ -71,7 +96,7 @@ def test_confirming_and_excluding_risks_via_web():
 
 def test_updating_risk_evaluation_via_web_changes_displayed_level():
     client.post("/setup/answers", data=ALL_YES_FORM)
-    confirm_all_candidates()
+    confirm_all_candidates_and_fill_ledgers()
     risk = intake_demo_state.get_state().risks[0]
     client.post(f"/setup/risks/{risk.id}/confirm")
 
@@ -86,14 +111,14 @@ def test_updating_risk_evaluation_via_web_changes_displayed_level():
     assert "（高）" in response.text
 
 
-def test_confirmed_vendor_risk_reason_appears_in_control_step():
+def test_confirmed_vendor_risk_reason_appears_in_control_step_after_risk_decisions_complete():
     client.post("/setup/answers", data=ALL_YES_FORM)
-    confirm_all_candidates()
-    vendor_risk = next(
-        r for r in intake_demo_state.get_state().risks if r.risk_id == "RISK-003"
-    )
+    confirm_all_candidates_and_fill_ledgers()
 
-    response = client.post(f"/setup/risks/{vendor_risk.id}/confirm")
+    for risk in list(intake_demo_state.get_state().risks):
+        client.post(f"/setup/risks/{risk.id}/confirm")
+
+    response = client.get("/setup")
 
     assert "委託先での漏えい" in response.text
     assert "委託先での漏えい・不適切な取扱いリスクが確認されています。" in response.text
@@ -101,7 +126,7 @@ def test_confirmed_vendor_risk_reason_appears_in_control_step():
 
 def test_case15_reset_clears_risk_state_via_web():
     client.post("/setup/answers", data=ALL_YES_FORM)
-    confirm_all_candidates()
+    confirm_all_candidates_and_fill_ledgers()
     risk = intake_demo_state.get_state().risks[0]
     client.post(f"/setup/risks/{risk.id}/confirm")
 
