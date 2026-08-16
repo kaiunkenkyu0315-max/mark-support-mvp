@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from app.paper_schemas import PaperControl, PaperMediaStatus
 
@@ -28,11 +29,7 @@ class PaperDemoState:
 
 
 def build_initial_state() -> PaperDemoState:
-    """デモの初期状態（意図的に不足を残した状態）を構築する。
-
-    保管場所・廃棄方法は登録済みだが、施錠管理・持出しルール・廃棄確認・承認が
-    未対応のままとする。
-    """
+    """デモの初期状態（意図的に不足を残した状態）を構築する。"""
 
     control = PaperControl(
         id=1,
@@ -60,38 +57,76 @@ _state: PaperDemoState = build_initial_state()
 
 
 def get_state() -> PaperDemoState:
-    """現在のデモ状態を取得する。"""
-
     return _state
 
 
 def reset_state() -> PaperDemoState:
-    """デモ状態を初期状態へ戻す。"""
-
     global _state
     _state = build_initial_state()
     return _state
 
 
-def confirm_storage_lock() -> None:
-    """保管場所の施錠管理を確認済みにする（操作1）。"""
+def confirm_storage_lock(
+    *,
+    locked: bool = True,
+    checked_on: str | None = None,
+    checked_by: str | None = None,
+    check_method: str | None = None,
+    evidence: str | None = None,
+    storage_location: str | None = None,
+) -> None:
+    """施錠管理の確認結果と説明可能な記録を保存する。"""
 
-    _state.status.storage_locked = True
+    status = _state.status
+    status.storage_locked = locked
+    if storage_location is not None:
+        status.storage_location = storage_location.strip() or status.storage_location
+    status.storage_lock_checked_on = checked_on or date.today().isoformat()
+    status.storage_lock_checked_by = (checked_by or "Pマーク担当者").strip()
+    status.storage_lock_check_method = (check_method or "現地確認").strip()
+    status.storage_lock_evidence = (evidence or "保管場所施錠確認記録").strip()
 
 
-def define_take_out_rule() -> None:
-    """持出しルールを設定する（操作2）。"""
+def define_take_out_rule(
+    *,
+    rule: str | None = None,
+    defined_on: str | None = None,
+    defined_by: str | None = None,
+) -> None:
+    """紙媒体の持出しルールと設定記録を保存する。"""
 
-    _state.status.take_out_rule = "持出し台帳に記録のうえ、責任者の許可を得て持ち出す。"
+    status = _state.status
+    status.take_out_rule = (
+        rule or "持出し台帳に記録のうえ、責任者の許可を得て持ち出す。"
+    ).strip()
+    status.take_out_rule_defined_on = defined_on or date.today().isoformat()
+    status.take_out_rule_defined_by = (defined_by or "Pマーク担当者").strip()
 
 
-def confirm_disposal() -> None:
-    """廃棄確認を実施済みにする（操作3）。"""
+def confirm_disposal(
+    *,
+    confirmed: bool = True,
+    confirmed_on: str | None = None,
+    confirmed_by: str | None = None,
+    evidence: str | None = None,
+    disposal_method: str | None = None,
+) -> None:
+    """廃棄方法の確認結果と証跡情報を保存する。"""
 
-    _state.status.disposal_confirmed = True
+    status = _state.status
+    status.disposal_confirmed = confirmed
+    if disposal_method is not None:
+        status.disposal_method = disposal_method.strip() or status.disposal_method
+    status.disposal_confirmed_on = confirmed_on or date.today().isoformat()
+    status.disposal_confirmed_by = (confirmed_by or "Pマーク担当者").strip()
+    status.disposal_evidence = (evidence or "紙媒体廃棄確認記録").strip()
 
 
-def approve_status() -> None:
-    """実施結果を承認済みにする（操作4）。"""
+def approve_status(
+    *, approved_by: str | None = None, approved_at: str | None = None
+) -> None:
+    """紙媒体管理の実施結果について承認事実を保存する。"""
 
     _state.status.approved = True
+    _state.status.approved_by = (approved_by or "個人情報保護管理者").strip()
+    _state.status.approved_at = approved_at or date.today().isoformat()
