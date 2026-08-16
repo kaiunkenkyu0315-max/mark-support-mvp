@@ -32,6 +32,22 @@ ACTION_MESSAGES: dict[str, str] = {
 }
 
 
+def _polish_display_labels(html: str) -> str:
+    """委託先画面の表示上の重複・曖昧なラベルだけを整える。
+
+    <ol> が自動で番号を付けるため、工程名側の番号は全体工程リストに限って除去する。
+    また上部サマリーの「評価済み／未評価」は、何の評価か分かるよう初回評価と明示する。
+    """
+
+    return (
+        html.replace("<strong>1. 初回評価</strong>", "<strong>初回評価</strong>")
+        .replace("<strong>2. 契約確認</strong>", "<strong>契約確認</strong>")
+        .replace("<strong>3. 定期評価</strong>", "<strong>定期評価</strong>")
+        .replace("<li>評価済み：", "<li>初回評価済み：")
+        .replace("<li>未評価：", "<li>初回評価未実施：")
+    )
+
+
 def _render_current_page(flash: str | None = None) -> str:
     if not operational_control_is_adopted(CONTROL_ID):
         return render_inactive_operation_page(title=PAGE_TITLE, control_id=CONTROL_ID)
@@ -40,7 +56,8 @@ def _render_current_page(flash: str | None = None) -> str:
     result = evaluate_vendors(state.vendors, state.control, state.assessments, state.contracts)
     control_suggestions = intake_demo_state.get_state().control_suggestions
     html = render_vendor_page(state, result, control_suggestions, flash=flash)
-    return enhance_vendor_page(html, state, result)
+    html = enhance_vendor_page(html, state, result)
+    return _polish_display_labels(html)
 
 
 def _redirect_with_flash(action_key: str) -> RedirectResponse:
