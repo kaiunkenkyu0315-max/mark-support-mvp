@@ -81,19 +81,62 @@ def test_initial_state_shows_issue_count_and_todo_list():
     assert "一般従業員50" in response.text
 
 
-def test_todo_uses_record_entry_forms_instead_of_magic_completion_buttons():
+def test_record_entry_shows_only_current_step_and_prefills_known_values():
     response = client.get("/education")
 
     assert "教育実施記録" in response.text
+    assert "1. 教育実施・教材記録" in response.text
     assert 'name="execution_date"' in response.text
     assert 'name="delivery_method"' in response.text
     assert 'name="material_name"' in response.text
+    assert 'value="2026年度 個人情報保護教育資料"' in response.text
     assert 'name="instructor_name"' in response.text
-    assert 'name="completed_on"' in response.text
-    assert 'name="comprehension_method"' in response.text
-    assert 'name="approved_by"' in response.text
-    assert 'name="approved_at"' in response.text
+    assert 'value="Pマーク担当者"' in response.text
+
+    # 後工程は最初から同時表示しない。
+    assert 'name="completed_on"' not in response.text
+    assert 'name="comprehension_method"' not in response.text
+    assert 'name="approved_by"' not in response.text
     assert "未受講者を受講済みにする" not in response.text
+
+
+def test_record_entry_advances_one_step_at_a_time():
+    response = client.post(
+        "/education/actions/register-material-evidence",
+        data={
+            "execution_date": "2026-06-10",
+            "delivery_method": "オンライン研修",
+            "material_name": "2026年度 個人情報保護教育資料 v1.0",
+            "instructor_name": "Pマーク担当者",
+        },
+    )
+    assert "2. 受講記録" in response.text
+    assert 'name="completed_on"' in response.text
+    assert 'value="2026-06-10"' in response.text
+    assert 'name="comprehension_method"' not in response.text
+    assert 'name="approved_by"' not in response.text
+
+    response = client.post(
+        "/education/actions/complete-trainings",
+        data={"completed_on": "2026-06-10"},
+    )
+    assert "3. 理解度確認記録" in response.text
+    assert 'name="comprehension_method"' in response.text
+    assert 'name="approved_by"' not in response.text
+
+    response = client.post(
+        "/education/actions/register-comprehension",
+        data={"comprehension_method": "理解度確認テスト", "result": "passed"},
+    )
+    assert "4. 教育実施結果の承認" in response.text
+    assert 'name="approved_by"' in response.text
+
+    response = client.post(
+        "/education/actions/approve",
+        data={"approved_by": "個人情報保護管理者 山田", "approved_at": "2026-06-11"},
+    )
+    assert "必要な教育実施記録は登録済みです" in response.text
+    assert "適合" in response.text
 
 
 def test_structured_record_fields_are_saved():
