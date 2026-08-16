@@ -33,12 +33,17 @@ def step4_unlocked(state: IntakeDemoState) -> bool:
 
 
 def step5_unlocked(state: IntakeDemoState) -> bool:
-    """STEP4が利用可能で、リスク候補の判断がすべて終わっていれば管理策へ進める。"""
+    """STEP4の該当判断と、確認済みリスクの評価確認がすべて終わっていれば管理策へ進める。"""
 
     if not step4_unlocked(state):
         return False
     return all(
-        risk.status != RiskCandidateStatus.CANDIDATE and not risk.needs_review
+        risk.status != RiskCandidateStatus.CANDIDATE
+        and not risk.needs_review
+        and (
+            risk.status != RiskCandidateStatus.CONFIRMED
+            or risk.evaluation_reviewed
+        )
         for risk in state.risks
     )
 
@@ -100,7 +105,7 @@ def apply_setup_step_gating(html: str, state: IntakeDemoState) -> str:
             _locked_section(
                 "step5",
                 "STEP 5　管理策確認",
-                "STEP4のリスク確認を完了すると、管理策候補を確認できるようになります。",
+                "STEP4のリスク判断と評価確認を完了すると、管理策候補を確認できるようになります。",
                 "step4",
             ),
         )
