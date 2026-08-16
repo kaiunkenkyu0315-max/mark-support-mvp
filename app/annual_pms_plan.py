@@ -142,7 +142,11 @@ def build_annual_pms_plan(
         current_name = next(step.name for step in steps if step.number == current_number)
         current_text = f"{current_number}. {current_name}"
     elif tracked_steps:
-        current_text = "現MVP運用範囲完了"
+        current_text = (
+            "現MVP運用範囲完了（次の後続工程：7. 内部監査）"
+            if review_result is None
+            else "現MVP運用範囲完了"
+        )
     elif data.setup_status != SetupStatus.COMPLETE:
         current_text = "初期設定完了後に年間運用対象を確定"
     else:
