@@ -1,8 +1,7 @@
 """トップダッシュボードに表示するPマーク取得ロードマップ。
 
-既存のDashboardDataに集約済みの状態だけを使い、取得全体の「森」を示す。
-内部監査・マネジメントレビュー・申請準備はまだMVPで実装していないため、
-未完了とは判定せず「後続工程」として明示する。
+取得計画固有の状態判定だけを担当し、計画モデルとHTML描画は共通部品へ分離する。
+これにより、同じ「森→現在地→詳細」の形式を年間PMS運用計画にも再利用できる。
 
 またトップの「今やること」は同じ管理領域の不足を複数並べず、領域ごとに
 最初の1件だけへ絞る。詳細な不足は各管理画面の全体工程へ降りて確認する。
@@ -10,39 +9,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from html import escape
-
 from app.dashboard import DashboardData, OperationalAreaSummary
 from app.intake_schemas import SetupStatus
-
-
-@dataclass(frozen=True)
-class AcquisitionPlanStep:
-    number: int
-    name: str
-    description: str
-    status: str
-    status_kind: str
-    link: str | None
-    implemented: bool
-    current: bool = False
-
-
-@dataclass(frozen=True)
-class AcquisitionPlan:
-    steps: list[AcquisitionPlanStep]
-    implemented_completed: int
-    implemented_total: int
-    current_text: str
+from app.plan_models import Plan, PlanStep
+from app.plan_view import render_plan
 
 
 def focus_dashboard_todos(data: DashboardData) -> None:
-    """トップ画面用にtodoを管理領域ごと1件へ絞る。
-
-    build_dashboard_data() が保持する詳細な不足情報自体は変更せず、トップ表示直前の
-    DashboardDataだけを整える。初期設定中は元々1件だけなので挙動は変わらない。
-    """
+    """トップ画面用にtodoを管理領域ごと1件へ絞る。"""
 
     focused = []
     seen_areas: set[str] = set()
@@ -108,7 +82,7 @@ def _operations_status(data: DashboardData) -> tuple[str, str, bool]:
     return "対応中", "current", False
 
 
-def build_acquisition_plan(data: DashboardData) -> AcquisitionPlan:
+def build_acquisition_plan(data: DashboardData) -> Plan:
     """現在の集約状態から、MVPで判定可能な取得ロードマップを組み立てる。"""
 
     setup_status, setup_kind, setup_complete = _setup_status(data)
@@ -151,10 +125,10 @@ def build_acquisition_plan(data: DashboardData) -> AcquisitionPlan:
             current_number = number
             break
 
-    steps: list[AcquisitionPlanStep] = []
-    for number, name, description, status, status_kind, link, complete in implemented_raw:
+    steps: list[PlanStep] = []
+    for number, name, description, status, status_kind, link, _complete in implemented_raw:
         steps.append(
-            AcquisitionPlanStep(
+            PlanStep(
                 number=number,
                 name=name,
                 description=description,
@@ -173,7 +147,7 @@ def build_acquisition_plan(data: DashboardData) -> AcquisitionPlan:
     )
     for number, name, description in future_steps:
         steps.append(
-            AcquisitionPlanStep(
+            PlanStep(
                 number=number,
                 name=name,
                 description=description,
@@ -191,70 +165,28 @@ def build_acquisition_plan(data: DashboardData) -> AcquisitionPlan:
         current_name = next(step.name for step in steps if step.number == current_number)
         current_text = f"{current_number}. {current_name}"
 
-    return AcquisitionPlan(
+    return Plan(
+        title="Pマーク取得の全体計画",
+        description=(
+            "まず全体の順序と現在地を確認し、その後で下の詳細へ進みます。"
+            "現在はMVPで自動判定できる範囲を表示し、内部監査以降は後続工程として示しています。"
+        ),
         steps=steps,
-        implemented_completed=completed,
-        implemented_total=3,
+        completed_count=completed,
+        tracked_total=3,
         current_text=current_text,
+        progress_label="実装範囲進捗",
+        footer_note=(
+            "具体的な開始日・目標申請日を持つ計画や、取得後の年間PMS運用計画も、"
+            "同じ計画形式へ拡張できる構造にしています。"
+        ),
     )
 
 
-def _status_style(kind: str) -> str:
-    return {
-        "complete": "background:#0a7a0a;color:#fff;",
-        "current": "background:#b36b00;color:#fff;",
-        "pending": "background:#666;color:#fff;",
-        "future": "background:#eee;color:#555;border:1px solid #bbb;",
-    }[kind]
+def render_acquisition_plan(plan: Plan) -> str:
+    """既存呼び出し名を維持しつつ、共通計画描画器を利用する。"""
 
-
-def render_acquisition_plan(plan: AcquisitionPlan) -> str:
-    rows: list[str] = []
-    for step in plan.steps:
-        current_marker = " ← 現在" if step.current else ""
-        row_style = "background:#fff8ef;" if step.current else ""
-        if step.link:
-            action = f'<a href="{escape(step.link)}">確認する</a>'
-        else:
-            action = "—"
-        rows.append(
-            f"""
-            <tr style="{row_style}">
-              <td style="padding:10px;border-bottom:1px solid #ddd;white-space:nowrap;">{step.number}</td>
-              <td style="padding:10px;border-bottom:1px solid #ddd;">
-                <strong>{escape(step.name)}</strong>{current_marker}<br>
-                <span style="color:#666;font-size:0.9em;">{escape(step.description)}</span>
-              </td>
-              <td style="padding:10px;border-bottom:1px solid #ddd;white-space:nowrap;">
-                <span style="display:inline-block;padding:2px 8px;border-radius:4px;{_status_style(step.status_kind)}">{escape(step.status)}</span>
-              </td>
-              <td style="padding:10px;border-bottom:1px solid #ddd;white-space:nowrap;">{action}</td>
-            </tr>
-            """
-        )
-
-    return f"""
-    <section class="acquisition-plan" style="border:1px solid #bbb;border-radius:4px;padding:16px;margin:24px 0;">
-      <h2 style="margin-top:0;">Pマーク取得の全体計画</h2>
-      <p>まず全体の順序と現在地を確認し、その後で下の詳細へ進みます。現在はMVPで自動判定できる範囲を表示し、内部監査以降は後続工程として示しています。</p>
-      <p><strong>実装範囲進捗：{plan.implemented_completed} / {plan.implemented_total} 工程 完了</strong></p>
-      <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;min-width:700px;">
-          <thead>
-            <tr>
-              <th style="text-align:left;padding:8px;border-bottom:2px solid #bbb;">順序</th>
-              <th style="text-align:left;padding:8px;border-bottom:2px solid #bbb;">工程</th>
-              <th style="text-align:left;padding:8px;border-bottom:2px solid #bbb;">状態</th>
-              <th style="text-align:left;padding:8px;border-bottom:2px solid #bbb;">詳細</th>
-            </tr>
-          </thead>
-          <tbody>{''.join(rows)}</tbody>
-        </table>
-      </div>
-      <p><strong>現在地：{escape(plan.current_text)}</strong></p>
-      <p style="font-size:0.9em;color:#666;">具体的な開始日・目標申請日を持つ年間計画への展開は、後続機能として追加できる構造にしています。</p>
-    </section>
-    """
+    return render_plan(plan, css_class="acquisition-plan")
 
 
 def enhance_dashboard_with_plan(html: str, data: DashboardData) -> str:
