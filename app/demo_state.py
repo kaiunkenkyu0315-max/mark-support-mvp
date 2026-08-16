@@ -107,16 +107,24 @@ def _demo_issue_employee_ids(employee_count: int) -> tuple[set[int], set[int]]:
 def _build_records(employee_count: int) -> list[TrainingRecord]:
     not_completed_ids, missing_comprehension_ids = _demo_issue_employee_ids(employee_count)
     records: list[TrainingRecord] = []
+    default_completed_on = f"{company_profile.get_state().fiscal_year}-04-01"
     for employee_id in range(1, employee_count + 1):
         if employee_id in not_completed_ids:
             records.append(TrainingRecord(employee_id=employee_id, completed=False))
         elif employee_id in missing_comprehension_ids:
-            records.append(TrainingRecord(employee_id=employee_id, completed=True))
+            records.append(
+                TrainingRecord(
+                    employee_id=employee_id,
+                    completed=True,
+                    completed_on=default_completed_on,
+                )
+            )
         else:
             records.append(
                 TrainingRecord(
                     employee_id=employee_id,
                     completed=True,
+                    completed_on=default_completed_on,
                     comprehension_result=ComprehensionResult.PASSED,
                 )
             )
@@ -183,33 +191,70 @@ def reset_state() -> EducationDemoState:
     return _state
 
 
-def complete_all_trainings() -> None:
-    """未受講の従業者をすべて受講済みにする（操作1）。"""
+def complete_all_trainings(completed_on: str | None = None) -> None:
+    """未受講の従業者について、受講日付きの受講記録を登録する。"""
 
     state = get_state()
+    completion_date = (completed_on or "").strip() or f"{state.company.fiscal_year}-04-01"
     for record in state.records:
         if not record.completed:
             record.completed = True
+            record.completed_on = completion_date
 
 
 def register_missing_comprehension(
     result: ComprehensionResult = ComprehensionResult.PASSED,
+    method: str | None = None,
 ) -> None:
-    """理解度確認が未登録の受講済み記録に、簡易値を登録する（操作2）。"""
+    """理解度確認が未登録の受講済み記録へ、結果と確認方法を登録する。"""
 
     state = get_state()
+    if method is not None and method.strip():
+        state.plan.comprehension_method = method.strip()
+    elif not state.plan.comprehension_method:
+        state.plan.comprehension_method = "理解度確認テスト"
+
     for record in state.records:
         if record.completed and record.comprehension_result is None:
             record.comprehension_result = result
 
 
+def register_training_execution(
+    *,
+    execution_date: str,
+    delivery_method: str,
+    material_name: str,
+    instructor_name: str,
+) -> None:
+    """教育の実施日・方法・教材・実施責任者を実施記録として登録する。"""
+
+    state = get_state()
+    state.plan.execution_date = execution_date.strip() or None
+    state.plan.delivery_method = delivery_method.strip() or None
+    state.plan.material_name = material_name.strip() or None
+    state.plan.instructor_name = instructor_name.strip() or None
+    state.plan.material_evidence_registered = bool(state.plan.material_name)
+
+
 def register_material_evidence() -> None:
-    """教材証跡を登録済みにする（操作3）。"""
+    """既存デモ操作互換用。説明可能な既定値を伴って教育実施記録を登録する。"""
 
-    get_state().plan.material_evidence_registered = True
+    state = get_state()
+    register_training_execution(
+        execution_date=f"{state.company.fiscal_year}-04-01",
+        delivery_method="オンライン研修",
+        material_name=f"{state.company.fiscal_year}年度 個人情報保護教育資料",
+        instructor_name="Pマーク担当者",
+    )
 
 
-def approve_plan() -> None:
-    """実施結果を承認済みにする（操作4）。"""
+def approve_plan(approved_by: str | None = None, approved_at: str | None = None) -> None:
+    """承認者・承認日を伴う教育実施結果の承認記録を登録する。"""
 
-    get_state().plan.approved = True
+    state = get_state()
+    profile = company_profile.get_state()
+    approver = (approved_by or "").strip() or profile.privacy_manager_name or "個人情報保護管理者"
+    approval_date = (approved_at or "").strip() or f"{state.company.fiscal_year}-04-02"
+    state.plan.approved_by = approver
+    state.plan.approved_at = approval_date
+    state.plan.approved = True
