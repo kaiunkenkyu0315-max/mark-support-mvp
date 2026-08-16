@@ -1,7 +1,7 @@
-"""intakeフロー（会社情報〜業務ヒアリング〜個人情報確認〜リスク〜管理策）のFastAPIルーティング。
+"""intakeフロー（会社・PMS基本情報〜業務ヒアリング〜個人情報確認〜リスク〜管理策）のFastAPIルーティング。
 
 HTTP処理（リクエスト受付・リダイレクト）のみを担当する。
-会社基本情報は app.company_profile、事実・候補データの更新は app.intake_demo_state、
+会社・PMS基本情報は app.company_profile、事実・候補データの更新は app.intake_demo_state、
 候補生成・再計算ロジックは app.intake / app.risk に委譲する。
 """
 
@@ -39,14 +39,40 @@ def setup_page() -> str:
 
 @router.post("/company")
 def submit_company_profile(
-    name: str = Form(...), employee_count: int = Form(...), fiscal_year: int = Form(...)
+    name: str = Form(...),
+    employee_count: int = Form(...),
+    fiscal_year: int = Form(...),
+    name_kana: str = Form(""),
+    corporate_number: str = Form(""),
+    registered_address: str = Form(""),
+    representative_title: str = Form(""),
+    representative_name: str = Form(""),
+    privacy_manager_name: str = Form(""),
+    privacy_manager_department_role: str = Form(""),
+    audit_manager_name: str = Form(""),
+    audit_manager_department_role: str = Form(""),
+    application_contact_name: str = Form(""),
+    application_contact_department_role: str = Form(""),
+    application_contact_email: str = Form(""),
 ) -> RedirectResponse:
-    """STEP0の会社情報を共通データとして保存し、業務情報へ進む。"""
+    """STEP0の会社・PMS基本情報を共通データとして保存し、業務情報へ進む。"""
 
     company_profile.update_profile(
         name=name,
         employee_count=employee_count,
         fiscal_year=fiscal_year,
+        name_kana=name_kana,
+        corporate_number=corporate_number,
+        registered_address=registered_address,
+        representative_title=representative_title,
+        representative_name=representative_name,
+        privacy_manager_name=privacy_manager_name,
+        privacy_manager_department_role=privacy_manager_department_role,
+        audit_manager_name=audit_manager_name,
+        audit_manager_department_role=audit_manager_department_role,
+        application_contact_name=application_contact_name,
+        application_contact_department_role=application_contact_department_role,
+        application_contact_email=application_contact_email,
     )
     return RedirectResponse(url="/setup#step1", status_code=303)
 
