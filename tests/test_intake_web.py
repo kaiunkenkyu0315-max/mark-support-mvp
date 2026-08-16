@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import intake_demo_state
+from app import company_profile, intake_demo_state
 from app.intake_schemas import ControlDecisionStatus
 from app.main import app
 
@@ -12,8 +12,10 @@ client = TestClient(app)
 def reset_intake_state():
     """各テストの前後でデモ状態を初期化し、テスト間の状態汚染を防ぐ。"""
 
+    company_profile.reset_state()
     intake_demo_state.reset_state()
     yield
+    company_profile.reset_state()
     intake_demo_state.reset_state()
 
 
@@ -28,6 +30,17 @@ ALL_NO_FORM = {
     "allows_remote_access": "no",
 }
 
+FULL_LEDGER_FORM = {
+    "acquisition_method": "申込フォームからの入力",
+    "storage_method": "社内システムに保存",
+    "storage_location": "社内サーバー",
+    "outsourced": "no",
+    "third_party_provided": "no",
+    "retention_period": "退職後5年",
+    "disposal_method": "システムから削除",
+    "responsible_role": "総務部長",
+}
+
 
 def answers_form(*yes_fields):
     """全問「いいえ」を基本に、指定したフィールドだけ「はい」にしたフォームデータを作る。"""
@@ -36,6 +49,22 @@ def answers_form(*yes_fields):
     for field in yes_fields:
         form[field] = "yes"
     return form
+
+
+def _complete_candidates_and_ledgers():
+    """STEP2〜3を完了させ、次工程のUI検証へ進める状態にする。"""
+
+    for candidate in list(intake_demo_state.get_state().candidates):
+        client.post(f"/setup/candidates/{candidate.id}/confirm")
+        form = dict(FULL_LEDGER_FORM)
+        if candidate.outsourced is True:
+            form["outsourced"] = "yes"
+        client.post(f"/setup/candidates/{candidate.id}/ledger", data=form)
+
+
+def _confirm_all_risks():
+    for risk in list(intake_demo_state.get_state().risks):
+        client.post(f"/setup/risks/{risk.id}/confirm")
 
 
 def test_case1_setup_page_returns_200_in_unanswered_state():
@@ -53,8 +82,12 @@ def test_case2_submitting_answers_generates_candidates_and_suggestions():
 
     assert response.status_code == 200
     assert "従業員情報" in response.text
-    assert "個人情報保護教育" in response.text
-    assert "委託先管理" in response.text
+
+    # 管理策候補そのものは内部で生成されるが、STEP3/4完了前なのでSTEP5の詳細UIはまだ見せない。
+    suggestion_names = {s.name for s in intake_demo_state.get_state().control_suggestions}
+    assert "個人情報保護教育" in suggestion_names
+    assert "委託先管理" in suggestion_names
+    assert "STEP4のリスク確認を完了すると、管理策候補を確認できるようになります。" in response.text
 
 
 def test_answers_are_reflected_when_changed():
@@ -68,6 +101,8 @@ def test_answers_are_reflected_when_changed():
 
 def test_case13_only_adopted_control_shows_link_to_its_operations_page():
     client.post("/setup/answers", data=answers_form("has_employees"))
+    _complete_candidates_and_ledgers()
+    _confirm_all_risks()
 
     response = client.post("/setup/controls/education/adopt")
 
@@ -81,6 +116,8 @@ def test_non_applicable_control_does_not_show_operations_link():
         "/setup/answers",
         data=answers_form("has_employees", "outsources_personal_data_processing"),
     )
+    _complete_candidates_and_ledgers()
+    _confirm_all_risks()
 
     response = client.post(
         "/setup/controls/vendor_management/not-applicable",
@@ -128,17 +165,6 @@ def test_case15_existing_vendors_page_still_works():
 
 
 # --- 台帳必須項目の入力・編集 ---
-
-FULL_LEDGER_FORM = {
-    "acquisition_method": "申込フォームからの入力",
-    "storage_method": "社内システムに保存",
-    "storage_location": "社内サーバー",
-    "outsourced": "no",
-    "third_party_provided": "no",
-    "retention_period": "退職後5年",
-    "disposal_method": "システムから削除",
-    "responsible_role": "総務部長",
-}
 
 
 def test_ledger_entry_can_be_filled_in_and_is_reflected():
