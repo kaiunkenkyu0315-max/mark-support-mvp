@@ -8,8 +8,8 @@
    になる。
 2. impact/likelihood は、システムが提示する初期値（suggested_impact/
    suggested_likelihood）と、利用者が確定した値（impact/likelihood）を
-   区別する。evaluation_reviewed=False の間は初期案であり、利用者が評価を
-   確認・保存して初めて確定した評価として扱う。
+   区別する。通常UIの一括判断では evaluation_reviewed=False に切り替え、
+   利用者が評価を確認・保存して初めて確定した評価として扱う。
 3. 「高リスク（score/level=高）」は、事故発生・法令違反・Pマーク取得可否を
    意味しない。あくまで「優先的に対策を検討すべきリスク」という扱いに
    とどめる。UI・文言でもこの前提を崩さない。
@@ -56,8 +56,12 @@ class RiskCandidate(BaseModel):
     suggested_likelihood: int
     impact: int
     likelihood: int
-    evaluation_reviewed: bool = False
-    """confirmedなリスクの影響度・発生可能性を利用者が確認・保存済みか。"""
+    evaluation_reviewed: bool = True
+    """confirmedなリスクの影響度・発生可能性を利用者が確認・保存済みか。
+
+    既存コードとの互換性のため既定値はTrue。通常UIの一括判断でconfirmedへ
+    移すときに明示的にFalseへ変更し、評価確認フェーズを必須にする。
+    """
     needs_review: bool = False
     """回答・確認済み個人情報の変化により前提が変わったため、再確認が望ましい状態。"""
 
