@@ -1,9 +1,8 @@
-"""intakeフロー（業務ヒアリング〜個人情報確認〜リスクアセスメント〜管理策候補提示）
-のFastAPIルーティング。
+"""intakeフロー（会社情報〜業務ヒアリング〜個人情報確認〜リスク〜管理策）のFastAPIルーティング。
 
 HTTP処理（リクエスト受付・リダイレクト）のみを担当する。
-事実・候補データの更新は app.intake_demo_state に、候補生成・再計算ロジックは
-app.intake / app.risk に委譲し、ここでは業務判定を行わない。
+会社基本情報は app.company_profile、事実・候補データの更新は app.intake_demo_state、
+候補生成・再計算ロジックは app.intake / app.risk に委譲する。
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import intake_demo_state
+from app import company_profile, intake_demo_state
 from app.intake_schemas import QuestionnaireAnswers
 from app.intake_step2_batch_view import render_setup_page_with_batch_step2
 
@@ -19,10 +18,7 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 
 
 def _parse_tristate_bool(value: object) -> bool | None:
-    """台帳フォームのtri-state radio（yes/no/unknown）をbool | Noneへ変換する。
-
-    "yes"/"no"以外（未送信・"unknown"等）はすべてNone（未回答）として扱う。
-    """
+    """台帳フォームのtri-state radio（yes/no/unknown）をbool | Noneへ変換する。"""
 
     if value == "yes":
         return True
@@ -39,6 +35,20 @@ def _render_current_page() -> str:
 @router.get("", response_class=HTMLResponse)
 def setup_page() -> str:
     return _render_current_page()
+
+
+@router.post("/company")
+def submit_company_profile(
+    name: str = Form(...), employee_count: int = Form(...), fiscal_year: int = Form(...)
+) -> RedirectResponse:
+    """STEP0の会社情報を共通データとして保存し、業務情報へ進む。"""
+
+    company_profile.update_profile(
+        name=name,
+        employee_count=employee_count,
+        fiscal_year=fiscal_year,
+    )
+    return RedirectResponse(url="/setup#step1", status_code=303)
 
 
 @router.post("/answers")
@@ -129,12 +139,12 @@ def adopt_control(control_id: str) -> RedirectResponse:
 def mark_control_not_applicable(control_id: str, reason: str = Form(...)) -> RedirectResponse:
     reason = reason.strip()
     if reason:
-        # 非適用の理由は必須とする。空欄の場合は状態を変更せず、そのまま画面に戻す。
         intake_demo_state.mark_control_not_applicable(control_id, reason)
     return RedirectResponse(url="/setup#step5", status_code=303)
 
 
 @router.post("/reset")
 def reset() -> RedirectResponse:
+    company_profile.reset_state()
     intake_demo_state.reset_state()
     return RedirectResponse(url="/setup", status_code=303)
