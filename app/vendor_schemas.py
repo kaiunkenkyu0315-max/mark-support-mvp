@@ -59,24 +59,40 @@ class VendorControl(BaseModel):
 
 
 class VendorAssessment(BaseModel):
-    """委託先ごとの評価状況（事実データ）。
+    """委託先ごとの評価記録（事実データ）。
 
-    latest_assessment_date が None の場合は「評価未実施」であり、
-    「実施済みだが不合格」という状態とは区別する。
+    初回評価と定期評価を同じ委託先に紐づく別の事実として保持する。
+    既存MVPとの互換性のため initial_assessment_completed は残すが、
+    画面からの新規登録では評価日・評価者・方法・結果・証跡も記録する。
     """
 
     vendor_id: int
+
+    # 初回評価
     initial_assessment_completed: bool
+    initial_assessment_date: date | None = None
+    initial_assessment_result: AssessmentResult | None = None
+    initial_assessment_by: str | None = None
+    initial_assessment_method: str | None = None
+    initial_assessment_evidence: str | None = None
+
+    # 定期評価
     latest_assessment_date: date | None = None
     next_assessment_due: date | None = None
     assessment_result: AssessmentResult | None = None
+    periodic_assessment_by: str | None = None
+    periodic_assessment_method: str | None = None
+    periodic_assessment_evidence: str | None = None
 
 
 class VendorContractStatus(BaseModel):
-    """委託先ごとの契約確認状況（事実データ）。"""
+    """委託先ごとの契約確認記録（事実データ）。"""
 
     vendor_id: int
     contract_confirmed: bool
+    confirmed_on: date | None = None
+    confirmed_by: str | None = None
+    contract_reference: str | None = None
 
 
 class VendorEvaluationStatus(str, Enum):
