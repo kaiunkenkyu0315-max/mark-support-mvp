@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.dashboard import DashboardData, OperationalAreaSummary
 from app.intake_schemas import SetupStatus
 from app.plan_models import Plan, PlanStep
@@ -174,10 +176,7 @@ def build_annual_pms_plan(data: DashboardData) -> Plan:
 
     current_number = next((number for number, complete in tracked_steps if not complete), None)
     if current_number is not None:
-        steps = [
-            step.__class__(**{**step.__dict__, "current": step.number == current_number})
-            for step in steps
-        ]
+        steps = [replace(step, current=step.number == current_number) for step in steps]
         current_name = next(step.name for step in steps if step.number == current_number)
         current_text = f"{current_number}. {current_name}"
     elif tracked_steps:
