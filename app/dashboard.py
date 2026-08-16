@@ -127,7 +127,14 @@ def _documents_summary(documents: list[Document]) -> tuple[int, int, int]:
     return ready, draft, not_applicable
 
 
-def _setup_todo_items(setup_status: SetupStatus) -> list[TodoItem]:
+def _setup_todo_items(
+    setup_status: SetupStatus,
+    candidates: list[PersonalInformationCandidate],
+    risks: list[RiskCandidate],
+    control_suggestions: list[ControlSuggestion],
+) -> list[TodoItem]:
+    """初期設定の現在地に応じて、次に行う1工程だけを案内する。"""
+
     if setup_status == SetupStatus.NOT_STARTED:
         return [
             TodoItem(
@@ -136,15 +143,76 @@ def _setup_todo_items(setup_status: SetupStatus) -> list[TodoItem]:
                 link="/setup",
             )
         ]
-    if setup_status == SetupStatus.IN_PROGRESS:
+    if setup_status != SetupStatus.IN_PROGRESS:
+        return []
+
+    unresolved_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.status == PersonalInformationCandidateStatus.CANDIDATE
+        or candidate.needs_review
+    ]
+    if unresolved_candidates:
         return [
             TodoItem(
-                area="初期設定",
-                message="個人情報・リスク・管理策の確認や台帳項目の入力が完了していません。",
+                area="個人情報",
+                message="個人情報候補を確認してください。取り扱っている情報は確認し、該当しないものは除外してください。",
                 link="/setup",
             )
         ]
-    return []
+
+    incomplete_ledger_entries = [
+        candidate
+        for candidate in candidates
+        if candidate.status == PersonalInformationCandidateStatus.CONFIRMED
+        and not is_ledger_entry_complete(candidate)
+    ]
+    if incomplete_ledger_entries:
+        return [
+            TodoItem(
+                area="個人情報台帳",
+                message="確認済みの個人情報について、取得方法・保管場所・保存期間などの台帳項目を入力してください。",
+                link="/setup",
+            )
+        ]
+
+    unresolved_risks = [
+        risk
+        for risk in risks
+        if risk.status == RiskCandidateStatus.CANDIDATE or risk.needs_review
+    ]
+    if unresolved_risks:
+        return [
+            TodoItem(
+                area="リスク",
+                message="リスク候補を確認してください。該当するリスクは確認し、該当しないものは除外してください。",
+                link="/setup",
+            )
+        ]
+
+    unresolved_controls = [
+        suggestion
+        for suggestion in control_suggestions
+        if suggestion.status == ControlDecisionStatus.SUGGESTED
+        or suggestion.needs_review
+    ]
+    if unresolved_controls:
+        return [
+            TodoItem(
+                area="管理策",
+                message="提示された管理策について、採用するか非適用とするかを判断してください。",
+                link="/setup",
+            )
+        ]
+
+    # SetupStatus.IN_PROGRESSで上記に該当しない場合の安全側フォールバック。
+    return [
+        TodoItem(
+            area="初期設定",
+            message="初期設定に未完了の項目があります。内容を確認してください。",
+            link="/setup",
+        )
+    ]
 
 
 def _operational_todo_items(
@@ -167,12 +235,7 @@ def _operational_todo_items(
 
 
 def _setup_not_started_operational_status() -> tuple[str, str, str]:
-    """初期設定が未着手のときに、運用状況の各エリアへ一律で使う状態。
-
-    この段階ではどの管理策も候補として提示されておらず（suggestionは必ずNone）、
-    対象になるかどうかもまだ判断できない。「未採用」（採用可否を判断した結果、
-    採用しなかった）と誤読されないよう、「初期設定待ち」という中立な状態を返す。
-    """
+    """初期設定が未着手のときに、運用状況の各エリアへ一律で使う状態。"""
 
     return (
         "初期設定待ち",
@@ -225,7 +288,9 @@ def build_dashboard_data(
     }
 
     operational_areas: list[OperationalAreaSummary] = []
-    todo_items: list[TodoItem] = list(_setup_todo_items(setup_status))
+    todo_items: list[TodoItem] = list(
+        _setup_todo_items(setup_status, candidates, risks, control_suggestions)
+    )
 
     for control_id, name, link in OPERATIONAL_AREAS:
         suggestion = find_control_suggestion(control_suggestions, control_id)
@@ -250,10 +315,9 @@ def build_dashboard_data(
             _operational_todo_items(control_id, name, link, suggestion, issue_messages)
         )
 
-    if setup_status != SetupStatus.NOT_STARTED:
-        # 初期設定が未着手の間は、確認済み個人情報がないこと自体が原因の
-        # 「情報不足」を、対応可能なtodoとして出さない（初期設定側の
-        # todo（_setup_todo_items）だけを見せる）。
+    if setup_status != SetupStatus.NOT_STARTED and pi_confirmed > 0:
+        # 個人情報を1件も確認していない段階では、台帳文書の「情報不足」はまだ
+        # 対応可能な文書課題ではない。個人情報確認後に初めて文書todoへ出す。
         todo_items.extend(_document_todo_items(documents))
 
     return DashboardData(
