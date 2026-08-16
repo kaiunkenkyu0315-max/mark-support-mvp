@@ -9,6 +9,7 @@ FastAPIやHTTP処理には依存しない、純粋な業務ロジックとして
 from __future__ import annotations
 
 from app.schemas import (
+    ComprehensionResult,
     EducationEvaluationResult,
     EducationEvaluationStatus,
     EducationIssue,
@@ -81,8 +82,7 @@ def evaluate_training(
         employee_id for employee_id in target_ids if employee_id not in not_completed_ids
     ]
 
-    # EDU-006: 理解度確認
-    # 受講済み対象者について comprehension_result が未登録(None)なら不足とする。
+    # EDU-006: 理解度確認未登録
     if control.comprehension_required:
         missing_comprehension_ids = [
             employee_id
@@ -97,6 +97,23 @@ def evaluate_training(
                         f"理解度確認が未登録の受講者が{len(missing_comprehension_ids)}名います。"
                     ),
                     employee_ids=missing_comprehension_ids,
+                )
+            )
+
+        # EDU-007: 理解度確認で不合格・要再教育
+        failed_comprehension_ids = [
+            employee_id
+            for employee_id in completed_ids
+            if records_by_employee[employee_id].comprehension_result == ComprehensionResult.FAILED
+        ]
+        if failed_comprehension_ids:
+            issues.append(
+                EducationIssue(
+                    rule_id="EDU-007",
+                    message=(
+                        f"理解度確認で要再教育の対象者が{len(failed_comprehension_ids)}名います。"
+                    ),
+                    employee_ids=failed_comprehension_ids,
                 )
             )
 
