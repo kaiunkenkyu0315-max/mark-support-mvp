@@ -97,8 +97,10 @@ def test_confirming_and_excluding_risks_via_web():
 def test_updating_risk_evaluation_via_web_changes_displayed_level():
     client.post("/setup/answers", data=ALL_YES_FORM)
     confirm_all_candidates_and_fill_ledgers()
-    risk = intake_demo_state.get_state().risks[0]
-    client.post(f"/setup/risks/{risk.id}/confirm")
+    risks = list(intake_demo_state.get_state().risks)
+    for item in risks:
+        client.post(f"/setup/risks/{item.id}/confirm")
+    risk = risks[0]
 
     response = client.post(
         f"/setup/risks/{risk.id}/evaluate", data={"impact": "3", "likelihood": "3"}
