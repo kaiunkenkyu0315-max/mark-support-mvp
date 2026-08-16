@@ -285,7 +285,7 @@ def test_setup_page_shows_ledger_management_method_and_related_controls():
 
     assert "管理方法：" in response.text
     assert "取得方法：本人提出" in response.text
-    assert "保管方法：クラウド＋紙" in response.text
+    assert "保管形態：クラウド＋紙" in response.text
     assert "関連する管理策：" in response.text
     assert "個人情報保護教育" in response.text
 
