@@ -112,6 +112,24 @@ def test_case3_comprehension_missing():
     assert edu006.employee_ids == [2]
 
 
+def test_case3b_failed_comprehension_requires_reeducation():
+    employees = make_employees(2)
+    records = [
+        TrainingRecord(
+            employee_id=1, completed=True, comprehension_result=ComprehensionResult.PASSED
+        ),
+        TrainingRecord(
+            employee_id=2, completed=True, comprehension_result=ComprehensionResult.FAILED
+        ),
+    ]
+
+    result = evaluate_training(employees, make_control(), make_plan(), records)
+
+    assert result.status == EducationEvaluationStatus.NEEDS_ACTION
+    edu007 = next(issue for issue in result.issues if issue.rule_id == "EDU-007")
+    assert edu007.employee_ids == [2]
+
+
 def test_case4_material_evidence_missing():
     employees = make_employees(3)
     records = make_completed_records([e.id for e in employees])
