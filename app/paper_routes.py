@@ -13,10 +13,14 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import intake_demo_state, paper_demo_state
+from app.operational_gate import operational_control_is_adopted, render_inactive_operation_page
 from app.paper import evaluate_paper_management
 from app.paper_view import render_paper_page
 
 router = APIRouter(prefix="/paper", tags=["paper"])
+
+CONTROL_ID = "paper_management"
+PAGE_TITLE = "紙媒体管理"
 
 # 各操作（不足解消）後に表示する、利用者向けの短いフィードバックメッセージ。
 ACTION_MESSAGES: dict[str, str] = {
@@ -28,6 +32,9 @@ ACTION_MESSAGES: dict[str, str] = {
 
 
 def _render_current_page(flash: str | None = None) -> str:
+    if not operational_control_is_adopted(CONTROL_ID):
+        return render_inactive_operation_page(title=PAGE_TITLE, control_id=CONTROL_ID)
+
     state = paper_demo_state.get_state()
     result = evaluate_paper_management(state.control, state.status)
     control_suggestions = intake_demo_state.get_state().control_suggestions
@@ -43,6 +50,12 @@ def _redirect_with_flash(action_key: str) -> RedirectResponse:
     return RedirectResponse(url=f"/paper?flash={quote(message)}", status_code=303)
 
 
+def _blocked_action() -> RedirectResponse | None:
+    if operational_control_is_adopted(CONTROL_ID):
+        return None
+    return RedirectResponse(url="/paper", status_code=303)
+
+
 @router.get("", response_class=HTMLResponse)
 def paper_page(flash: str | None = None) -> str:
     return _render_current_page(flash)
@@ -50,24 +63,36 @@ def paper_page(flash: str | None = None) -> str:
 
 @router.post("/actions/confirm-storage-lock")
 def confirm_storage_lock() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     paper_demo_state.confirm_storage_lock()
     return _redirect_with_flash("confirm-storage-lock")
 
 
 @router.post("/actions/define-take-out-rule")
 def define_take_out_rule() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     paper_demo_state.define_take_out_rule()
     return _redirect_with_flash("define-take-out-rule")
 
 
 @router.post("/actions/confirm-disposal")
 def confirm_disposal() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     paper_demo_state.confirm_disposal()
     return _redirect_with_flash("confirm-disposal")
 
 
 @router.post("/actions/approve")
 def approve_status() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     paper_demo_state.approve_status()
     return _redirect_with_flash("approve")
 
