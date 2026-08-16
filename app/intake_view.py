@@ -88,6 +88,60 @@ RISK_LEVEL_DISCLAIMER = (
     "あくまで優先的に対策を検討する目安です。"
 )
 
+# 台帳入力の負担を下げるための一般的な候補。
+# datalistを使うため、候補に当てはまらない場合も利用者は自由記入できる。
+LEDGER_INPUT_OPTIONS: dict[str, tuple[str, ...]] = {
+    "acquisition_method": (
+        "本人から直接取得",
+        "Webフォーム",
+        "書面",
+        "メール",
+        "取引先・委託元から提供",
+        "その他",
+    ),
+    "storage_method": (
+        "電子データ",
+        "紙",
+        "外部記録媒体",
+        "電子データ＋紙",
+        "その他",
+    ),
+    "storage_location": (
+        "クラウド／SaaS",
+        "社内サーバ",
+        "PC端末",
+        "施錠キャビネット",
+        "書庫",
+        "外部記録媒体の保管庫",
+        "その他",
+    ),
+    "disposal_method": (
+        "システムから削除",
+        "シュレッダー",
+        "溶解処理",
+        "専門業者へ廃棄委託",
+        "媒体を物理破壊",
+        "その他",
+    ),
+    "responsible_role": (
+        "個人情報保護管理者",
+        "総務責任者",
+        "人事責任者",
+        "情報システム責任者",
+        "各部門責任者",
+        "その他",
+    ),
+}
+
+LEDGER_INPUT_HELP: dict[str, str] = {
+    "acquisition_method": "候補から選ぶか、当てはまらなければ直接入力できます。例：展示会で本人から名刺を受領。",
+    "storage_method": "情報そのものの形態を選びます。例：電子データ、紙、USB等の外部記録媒体。",
+    "storage_location": "実際に保管している場所を選びます。例：クラウド／SaaS、社内サーバ、施錠キャビネット。",
+    "retention_period": "例：退職後5年、契約終了後3年。法令・契約・利用目的等で適切な期間が異なるため、現在のMVPでは自社で定めている期間を入力してください。",
+    "disposal_method": "候補から選ぶか、当てはまらなければ直接入力できます。例：システムから削除、シュレッダー。",
+    "responsible_role": "個人名ではなく役割で入力します。例：総務責任者、人事責任者。",
+}
+
 
 def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -267,6 +321,38 @@ def _tristate_display(value: bool | None) -> str:
     return "あり" if value else "なし"
 
 
+def _render_datalist(list_id: str, options: tuple[str, ...]) -> str:
+    option_html = "".join(f'<option value="{_escape(option)}"></option>' for option in options)
+    return f'<datalist id="{list_id}">{option_html}</datalist>'
+
+
+def _render_ledger_datalists() -> str:
+    return "".join(
+        _render_datalist(f"ledger-{field.replace('_', '-')}-options", options)
+        for field, options in LEDGER_INPUT_OPTIONS.items()
+    )
+
+
+def _render_assisted_ledger_input(
+    candidate: PersonalInformationCandidate,
+    field: str,
+    label: str,
+    value: str | None,
+    placeholder: str,
+) -> str:
+    input_id = f"{field}-{candidate.id}"
+    list_id = f"ledger-{field.replace('_', '-')}-options"
+    help_text = LEDGER_INPUT_HELP[field]
+    return f"""
+    <div class="ledger-form-field">
+      <label for="{input_id}">{_escape(label)}</label>
+      <input id="{input_id}" type="text" name="{field}" list="{list_id}"
+             value="{_escape(value or '')}" placeholder="{_escape(placeholder)}">
+      <p class="ledger-field-help">{_escape(help_text)}</p>
+    </div>
+    """
+
+
 def _render_ledger_management_summary(
     state: IntakeDemoState, candidate: PersonalInformationCandidate
 ) -> str:
@@ -282,7 +368,7 @@ def _render_ledger_management_summary(
     items_html = "".join(
         [
             _line("取得方法", candidate.acquisition_method),
-            _line("保管方法", candidate.storage_method),
+            _line("保管形態", candidate.storage_method),
             _line("保管場所", candidate.storage_location),
             f"<li>委託：{_tristate_display(candidate.outsourced)}</li>",
             f"<li>第三者提供：{_tristate_display(candidate.third_party_provided)}</li>",
@@ -340,15 +426,10 @@ def _render_ledger_entry(state: IntakeDemoState, candidate: PersonalInformationC
       {entry_status_note}
       {_render_ledger_management_summary(state, candidate)}
       <form method="post" action="/setup/candidates/{candidate.id}/ledger" class="ledger-form">
-        <label>取得方法
-          <input type="text" name="acquisition_method" value="{_escape(candidate.acquisition_method or '')}">
-        </label>
-        <label>保管方法
-          <input type="text" name="storage_method" value="{_escape(candidate.storage_method or '')}">
-        </label>
-        <label>保管場所
-          <input type="text" name="storage_location" value="{_escape(candidate.storage_location or '')}">
-        </label>
+        <p class="ledger-form-guide">候補から選ぶだけで入力できます。当てはまらない場合は、そのまま自由に入力してください。</p>
+        {_render_assisted_ledger_input(candidate, 'acquisition_method', '取得方法', candidate.acquisition_method, '例：本人から直接取得')}
+        {_render_assisted_ledger_input(candidate, 'storage_method', '保管形態', candidate.storage_method, '例：電子データ')}
+        {_render_assisted_ledger_input(candidate, 'storage_location', '保管場所', candidate.storage_location, '例：クラウド／SaaS')}
         <div class="ledger-form-row">
           <span class="ledger-form-row-label">外部委託の有無</span>
           {_tristate_radio_group('outsourced', candidate.outsourced)}
@@ -357,15 +438,14 @@ def _render_ledger_entry(state: IntakeDemoState, candidate: PersonalInformationC
           <span class="ledger-form-row-label">第三者提供の有無</span>
           {_tristate_radio_group('third_party_provided', candidate.third_party_provided)}
         </div>
-        <label>保管期間
-          <input type="text" name="retention_period" value="{_escape(candidate.retention_period or '')}">
-        </label>
-        <label>廃棄方法
-          <input type="text" name="disposal_method" value="{_escape(candidate.disposal_method or '')}">
-        </label>
-        <label>管理担当者（役割）
-          <input type="text" name="responsible_role" value="{_escape(candidate.responsible_role or '')}">
-        </label>
+        <div class="ledger-form-field">
+          <label for="retention-period-{candidate.id}">保存期間</label>
+          <input id="retention-period-{candidate.id}" type="text" name="retention_period"
+                 value="{_escape(candidate.retention_period or '')}" placeholder="例：退職後5年">
+          <p class="ledger-field-help">{_escape(LEDGER_INPUT_HELP['retention_period'])}</p>
+        </div>
+        {_render_assisted_ledger_input(candidate, 'disposal_method', '廃棄方法', candidate.disposal_method, '例：システムから削除')}
+        {_render_assisted_ledger_input(candidate, 'responsible_role', '管理担当者（役割）', candidate.responsible_role, '例：総務責任者')}
         <button type="submit">台帳項目を保存する</button>
       </form>
     </li>
@@ -402,8 +482,9 @@ def _render_ledger_section(state: IntakeDemoState) -> str:
     <section class="ledger" id="step3">
       <h2>STEP 3　個人情報台帳</h2>
       <p>STEP2で「取り扱っている」と確認した個人情報だけを台帳として管理します。
-      台帳必須項目をすべて入力すると、台帳項目が完了します。</p>
+      よくある内容は候補から選択でき、候補にない場合だけ自由入力できます。</p>
       <p class="ledger-status">台帳の状態：<span class="status-badge {ledger_status_class}">{ledger_status_label}</span></p>
+      {_render_ledger_datalists()}
       <ul class="candidate-list">{rows}</ul>
       {_back_to_top_link()}
     </section>
@@ -713,9 +794,13 @@ def render_setup_page(state: IntakeDemoState) -> str:
     .ledger-status {{ font-weight: bold; }}
     .ledger-entry-complete {{ margin: 0 0 0.5rem; color: #0a7a0a; font-weight: bold; }}
     .ledger-entry-incomplete {{ margin: 0 0 0.5rem; color: #b30000; font-weight: bold; }}
-    .ledger-form label {{ display: inline-block; margin-right: 0.75rem; }}
-    .ledger-form input[type="text"] {{ margin-left: 0.3rem; }}
-    .ledger-form-row {{ margin: 0 0 0.5rem; }}
+    .ledger-form {{ display: block; margin: 1rem 0 0; }}
+    .ledger-form-guide {{ margin: 0 0 0.8rem; font-size: 0.9rem; color: #555; }}
+    .ledger-form-field {{ margin: 0 0 0.8rem; }}
+    .ledger-form-field label {{ display: block; margin: 0 0 0.15rem; font-weight: bold; }}
+    .ledger-form-field input[type="text"] {{ width: min(28rem, 95%); box-sizing: border-box; padding: 0.3rem 0.4rem; }}
+    .ledger-field-help {{ margin: 0.15rem 0 0; font-size: 0.82rem; color: #777; }}
+    .ledger-form-row {{ margin: 0 0 0.8rem; }}
     .ledger-form-row-label {{ font-weight: bold; margin-right: 0.5rem; }}
     .ledger-form-row label {{ display: inline-block; margin-right: 0.75rem; font-weight: normal; }}
     .question {{ margin-bottom: 0.75rem; }}
