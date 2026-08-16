@@ -13,6 +13,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import company_profile, intake_demo_state
 from app.intake_schemas import QuestionnaireAnswers
 from app.intake_step2_batch_view import render_setup_page_with_batch_step2
+from app.risk_batch_view import apply_risk_batch_view
+from app.risk_schemas import RiskCandidateStatus
 from app.setup_step_gating import apply_setup_step_gating
 
 router = APIRouter(prefix="/setup", tags=["setup"])
@@ -31,6 +33,7 @@ def _parse_tristate_bool(value: object) -> bool | None:
 def _render_current_page() -> str:
     state = intake_demo_state.get_state()
     html = render_setup_page_with_batch_step2(state)
+    html = apply_risk_batch_view(html, state)
     return apply_setup_step_gating(html, state)
 
 
@@ -143,14 +146,51 @@ async def update_ledger_entry(candidate_id: int, request: Request) -> RedirectRe
     return RedirectResponse(url="/setup#step3", status_code=303)
 
 
+@router.post("/risks/decide")
+async def decide_risks(request: Request) -> RedirectResponse:
+    """STEP4前半のリスク該当／非該当をまとめて保存する。"""
+
+    form = await request.form()
+    decisions: dict[int, bool] = {}
+    for risk in intake_demo_state.get_state().risks:
+        value = form.get(f"risk_{risk.id}")
+        if value == "yes":
+            decisions[risk.id] = True
+        elif value == "no":
+            decisions[risk.id] = False
+    intake_demo_state.decide_risks(decisions)
+    return RedirectResponse(url="/setup#step4", status_code=303)
+
+
+@router.post("/risks/evaluate-batch")
+async def evaluate_risks_batch(request: Request) -> RedirectResponse:
+    """STEP4後半のconfirmedリスク評価をまとめて確定する。"""
+
+    form = await request.form()
+    evaluations: dict[int, tuple[int, int]] = {}
+    for risk in intake_demo_state.get_state().risks:
+        if risk.status != RiskCandidateStatus.CONFIRMED:
+            continue
+        impact = form.get(f"impact_{risk.id}")
+        likelihood = form.get(f"likelihood_{risk.id}")
+        if impact is not None and likelihood is not None:
+            evaluations[risk.id] = (int(impact), int(likelihood))
+    intake_demo_state.update_risk_evaluations(evaluations)
+    return RedirectResponse(url="/setup#step5", status_code=303)
+
+
 @router.post("/risks/{risk_candidate_id}/confirm")
 def confirm_risk(risk_candidate_id: int) -> RedirectResponse:
+    """既存互換用。通常UIでは一括判断を使用する。"""
+
     intake_demo_state.confirm_risk(risk_candidate_id)
     return RedirectResponse(url="/setup#step4", status_code=303)
 
 
 @router.post("/risks/{risk_candidate_id}/exclude")
 def exclude_risk(risk_candidate_id: int) -> RedirectResponse:
+    """既存互換用。通常UIでは一括判断を使用する。"""
+
     intake_demo_state.exclude_risk(risk_candidate_id)
     return RedirectResponse(url="/setup#step4", status_code=303)
 
@@ -159,6 +199,8 @@ def exclude_risk(risk_candidate_id: int) -> RedirectResponse:
 def update_risk_evaluation(
     risk_candidate_id: int, impact: int = Form(...), likelihood: int = Form(...)
 ) -> RedirectResponse:
+    """既存互換用の個別評価更新。"""
+
     intake_demo_state.update_risk_evaluation(risk_candidate_id, impact, likelihood)
     return RedirectResponse(url="/setup#step4", status_code=303)
 
