@@ -310,14 +310,17 @@ def build_dashboard_data(
                 adopted=is_adopted(suggestion),
             )
         )
-        issue_messages = [issue.message for issue in result.issues]
-        todo_items.extend(
-            _operational_todo_items(control_id, name, link, suggestion, issue_messages)
-        )
 
-    if setup_status != SetupStatus.NOT_STARTED and pi_confirmed > 0:
-        # 個人情報を1件も確認していない段階では、台帳文書の「情報不足」はまだ
-        # 対応可能な文書課題ではない。個人情報確認後に初めて文書todoへ出す。
+        # 初期設定が完了するまでは、ダッシュボードの「今やること」を
+        # 初期設定の現在工程1件に集中させる。運用上の不足は初期設定完了後に表示する。
+        if setup_status == SetupStatus.COMPLETE:
+            issue_messages = [issue.message for issue in result.issues]
+            todo_items.extend(
+                _operational_todo_items(control_id, name, link, suggestion, issue_messages)
+            )
+
+    if setup_status == SetupStatus.COMPLETE:
+        # 文書や運用の不足は、初期設定を完了した後の「次にやること」として表示する。
         todo_items.extend(_document_todo_items(documents))
 
     return DashboardData(
