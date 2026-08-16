@@ -71,13 +71,14 @@ CONTROL_LINK_LABELS = {
     "paper_management": "紙媒体管理へ進む",
 }
 
+# 上部の工程ナビゲーション。表示だけでなく、各STEPへのページ内リンクとして使う。
 STEPPER = [
-    "STEP1 業務情報",
-    "STEP2 個人情報候補",
-    "STEP3 個人情報確認",
-    "STEP4 リスク確認",
-    "STEP5 管理策確認",
-    "STEP6 運用開始",
+    ("step1", "STEP1 業務情報"),
+    ("step2", "STEP2 個人情報確認"),
+    ("step3", "STEP3 個人情報台帳"),
+    ("step4", "STEP4 リスク確認"),
+    ("step5", "STEP5 管理策確認"),
+    ("step6", "STEP6 運用開始"),
 ]
 
 NEEDS_REVIEW_NOTE = "回答内容が変更されたため、再確認をおすすめします。"
@@ -93,8 +94,15 @@ def _escape(text: str) -> str:
 
 
 def _render_stepper() -> str:
-    items = "".join(f"<li>{_escape(step)}</li>" for step in STEPPER)
+    items = "".join(
+        f'<li><a href="#{anchor}">{_escape(label)}</a></li>'
+        for anchor, label in STEPPER
+    )
     return f'<ol class="stepper">{items}</ol>'
+
+
+def _back_to_top_link() -> str:
+    return '<p class="back-to-top"><a href="#setup-top">↑ 初期設定の先頭へ戻る</a></p>'
 
 
 # ---------------------------------------------------------------------------
@@ -142,23 +150,29 @@ def _render_step1_answers(state: IntakeDemoState) -> str:
     )
 
     return f"""
-    <section class="step">
+    <section class="step" id="step1">
       <h2>STEP 1　業務情報</h2>
       <p>{intro}</p>
       <form method="post" action="/setup/answers">
         {questions_html}
         <button type="submit">回答を保存する</button>
       </form>
+      {_back_to_top_link()}
     </section>
     """
 
 
 # ---------------------------------------------------------------------------
-# STEP 2: 個人情報候補（一覧・読み取り専用）
+# 旧STEP 2候補一覧（互換用・画面では使用しない）
 # ---------------------------------------------------------------------------
 
 
 def _render_step2_candidates(state: IntakeDemoState) -> str:
+    """旧読み取り専用候補一覧。
+
+    候補表示と確認操作を分けると利用者が迷うため、画面描画では使用しない。
+    候補情報は現在のSTEP2（_render_step3_confirmation）内で操作と一緒に表示する。
+    """
     if not state.answers_submitted:
         body = "<p>STEP1に回答すると、ここに個人情報の候補が表示されます。</p>"
     elif not state.candidates:
@@ -175,18 +189,11 @@ def _render_step2_candidates(state: IntakeDemoState) -> str:
             for candidate in state.candidates
         )
         body = f'<ul class="candidate-list">{rows}</ul>'
-
-    return f"""
-    <section class="step">
-      <h2>STEP 2　個人情報候補</h2>
-      <p>回答内容から、取り扱っている可能性のある個人情報の候補を機械的に一覧化したものです（まだ確定していません）。</p>
-      {body}
-    </section>
-    """
+    return body
 
 
 # ---------------------------------------------------------------------------
-# STEP 3: 個人情報確認（要対応のみ・操作あり）＋確認済み台帳
+# STEP 2: 個人情報確認（候補表示＋操作を統合）
 # ---------------------------------------------------------------------------
 
 
@@ -223,10 +230,11 @@ def _render_step3_confirmation(state: IntakeDemoState) -> str:
         body = f'<ul class="candidate-list">{rows}</ul>'
 
     return f"""
-    <section class="step">
-      <h2>STEP 3　個人情報確認</h2>
-      <p>候補ごとに、実際に取り扱っているかどうかを確認してください。</p>
+    <section class="step" id="step2">
+      <h2>STEP 2　個人情報確認</h2>
+      <p>業務回答から機械的に抽出した候補です。候補ごとに、実際に取り扱っているかどうかを確認してください。</p>
       {body}
+      {_back_to_top_link()}
     </section>
     """
 
@@ -364,6 +372,11 @@ def _render_ledger_entry(state: IntakeDemoState, candidate: PersonalInformationC
     """
 
 
+# ---------------------------------------------------------------------------
+# STEP 3: 個人情報台帳
+# ---------------------------------------------------------------------------
+
+
 def _render_ledger_section(state: IntakeDemoState) -> str:
     confirmed = [
         candidate
@@ -372,10 +385,11 @@ def _render_ledger_section(state: IntakeDemoState) -> str:
     ]
 
     if not confirmed:
-        return """
-        <section class="ledger">
-          <h2>確認済み個人情報（簡易台帳）</h2>
-          <p>候補一覧とは区別して、利用者が「取り扱っている」と確認したものだけを表示します。まだ確認済みの個人情報はありません。</p>
+        return f"""
+        <section class="ledger" id="step3">
+          <h2>STEP 3　個人情報台帳</h2>
+          <p>STEP2で「取り扱っている」と確認した個人情報について、取得・保管・委託・保存・廃棄等の管理方法を登録します。まだ確認済みの個人情報はありません。</p>
+          {_back_to_top_link()}
         </section>
         """
 
@@ -385,12 +399,13 @@ def _render_ledger_section(state: IntakeDemoState) -> str:
     rows = "".join(_render_ledger_entry(state, candidate) for candidate in confirmed)
 
     return f"""
-    <section class="ledger">
-      <h2>確認済み個人情報（簡易台帳）</h2>
-      <p>候補一覧とは区別して、利用者が「取り扱っている」と確認したものだけを表示します。
+    <section class="ledger" id="step3">
+      <h2>STEP 3　個人情報台帳</h2>
+      <p>STEP2で「取り扱っている」と確認した個人情報だけを台帳として管理します。
       台帳必須項目をすべて入力すると、台帳項目が完了します。</p>
       <p class="ledger-status">台帳の状態：<span class="status-badge {ledger_status_class}">{ledger_status_label}</span></p>
       <ul class="candidate-list">{rows}</ul>
+      {_back_to_top_link()}
     </section>
     """
 
@@ -505,11 +520,12 @@ def _render_step4_risks(state: IntakeDemoState) -> str:
         body = f'<ul class="risk-list">{rows}</ul>'
 
     return f"""
-    <section class="step">
+    <section class="step" id="step4">
       <h2>STEP 4　リスク確認</h2>
       <p>確認済みの個人情報・業務内容から、想定されるリスクの候補です。内容を確認し、実際に該当するかどうかを判断してください。</p>
       {summary}
       {body}
+      {_back_to_top_link()}
     </section>
     """
 
@@ -607,11 +623,12 @@ def _render_step5_controls(state: IntakeDemoState) -> str:
         body = f'<ul class="control-list">{rows}</ul>'
 
     return f"""
-    <section class="step">
+    <section class="step" id="step5">
       <h2>STEP 5　管理策確認</h2>
       <p>確認した業務・個人情報・リスクの内容から、必要になり得る管理策候補です。採用するか、非適用にするかを判断してください。</p>
       {body}
       {_render_unmapped_risk_note(state)}
+      {_back_to_top_link()}
     </section>
     """
 
@@ -641,10 +658,11 @@ def _render_step6_summary(state: IntakeDemoState) -> str:
     documents_link = '<p><a href="/documents">文書管理を確認する</a></p>'
 
     return f"""
-    <section class="step">
+    <section class="step" id="step6">
       <h2>STEP 6　運用開始</h2>
       {body}
       {documents_link}
+      {_back_to_top_link()}
     </section>
     """
 
@@ -675,14 +693,18 @@ def render_setup_page(state: IntakeDemoState) -> str:
   <meta charset="utf-8">
   <title>Pマーク準備 - Pマーク取得・運用支援ツール MVP</title>
   <style>
+    html {{ scroll-behavior: smooth; }}
     body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 900px; }}
     h1 {{ margin-bottom: 0.5rem; }}
-    section {{ margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #ccc; }}
+    section {{ margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #ccc; scroll-margin-top: 1rem; }}
     .stepper {{ display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 1rem 0; list-style: none; }}
     .stepper li {{
       background: #eef5fc; border: 1px solid #0a4a8a; border-radius: 4px;
       padding: 0.2rem 0.6rem; font-size: 0.9rem;
     }}
+    .stepper a {{ color: #0a4a8a; text-decoration: none; }}
+    .stepper a:hover {{ text-decoration: underline; }}
+    .back-to-top {{ margin-top: 1rem; font-size: 0.9rem; }}
     .setup-status {{ font-weight: bold; }}
     .status-badge {{ display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; color: #fff; }}
     .status-badge.not-started {{ background: #666; }}
@@ -735,7 +757,7 @@ def render_setup_page(state: IntakeDemoState) -> str:
     .risk-badge.risk-high {{ background: #fdeaea; color: #b30000; }}
   </style>
 </head>
-<body>
+<body id="setup-top">
   <p><a href="/">&laquo; トップへ戻る</a></p>
   <h1>Pマーク準備</h1>
   <p>会社・業務について回答すると、取り扱っている可能性のある個人情報や、必要になり得る管理策の候補が提示されます。内容を確認・採用しながら準備を進めます。</p>
@@ -743,7 +765,6 @@ def render_setup_page(state: IntakeDemoState) -> str:
   {_render_stepper()}
 
   {_render_step1_answers(state)}
-  {_render_step2_candidates(state)}
   {_render_step3_confirmation(state)}
   {_render_ledger_section(state)}
   {_render_step4_risks(state)}
