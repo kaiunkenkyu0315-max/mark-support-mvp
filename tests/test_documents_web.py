@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import demo_state, intake_demo_state, vendor_demo_state
+from app import company_profile, demo_state, intake_demo_state, vendor_demo_state
 from app.intake_schemas import QuestionnaireAnswers
 from app.main import app
 
@@ -12,10 +12,12 @@ client = TestClient(app)
 def reset_all_state():
     """各テストの前後で全デモ状態を初期化し、テスト間の状態汚染を防ぐ。"""
 
+    company_profile.reset_state()
     intake_demo_state.reset_state()
     demo_state.reset_state()
     vendor_demo_state.reset_state()
     yield
+    company_profile.reset_state()
     intake_demo_state.reset_state()
     demo_state.reset_state()
     vendor_demo_state.reset_state()
@@ -191,10 +193,11 @@ def test_top_page_links_to_documents_after_personal_information_is_confirmed():
     assert "文書を確認" in response.text
 
 
-def test_setup_page_links_to_documents():
+def test_setup_hides_documents_link_until_management_decisions_are_complete():
     response = client.get("/setup")
 
-    assert "/documents" in response.text
+    assert "/documents" not in response.text
+    assert "STEP5の管理策判断を完了すると、運用画面へ進めるようになります。" in response.text
 
 
 # --- 9. 既存機能を壊さない ---
