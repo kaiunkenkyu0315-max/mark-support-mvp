@@ -1,18 +1,34 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import demo_state
+from app import demo_state, intake_demo_state
+from app.intake_schemas import ControlDecisionStatus, ControlSuggestion
 from app.main import app
 
 client = TestClient(app)
 
 
+def _adopt_education_control() -> None:
+    intake_demo_state.get_state().control_suggestions.append(
+        ControlSuggestion(
+            control_id="education",
+            name="個人情報保護教育",
+            reason="テスト用",
+            status=ControlDecisionStatus.ADOPTED,
+            link_url="/education",
+        )
+    )
+
+
 @pytest.fixture(autouse=True)
 def reset_demo_state():
-    """各テストの前後でデモ状態を初期化し、テスト間の状態汚染を防ぐ。"""
+    """各テストを、教育管理策が採用済みの運用状態から開始する。"""
 
+    intake_demo_state.reset_state()
+    _adopt_education_control()
     demo_state.reset_state()
     yield
+    intake_demo_state.reset_state()
     demo_state.reset_state()
 
 
