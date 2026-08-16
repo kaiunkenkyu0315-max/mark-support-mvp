@@ -139,7 +139,8 @@ def test_record_entry_advances_one_step_at_a_time_with_overall_progress():
     )
     assert "全体進捗：2 / 4 工程 完了" in response.text
     assert "現在地：3. 理解度確認" in response.text
-    assert "理解度確認が未登録の3名について結果を登録してください" in response.text
+    # 既存の理解度未登録3名に、今回受講した2名が加わる。
+    assert "理解度確認が未登録の5名について結果を登録してください" in response.text
     assert 'name="comprehension_method"' in response.text
     assert 'name="approved_by"' not in response.text
 
