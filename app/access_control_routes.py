@@ -15,8 +15,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import access_control_demo_state, intake_demo_state
 from app.access_control import evaluate_access_control
 from app.access_control_view import render_access_control_page
+from app.operational_gate import operational_control_is_adopted, render_inactive_operation_page
 
 router = APIRouter(prefix="/access-control", tags=["access-control"])
+
+CONTROL_ID = "access_control"
+PAGE_TITLE = "アクセス権限管理"
 
 # 各操作（不足解消）後に表示する、利用者向けの短いフィードバックメッセージ。
 ACTION_MESSAGES: dict[str, str] = {
@@ -28,6 +32,9 @@ ACTION_MESSAGES: dict[str, str] = {
 
 
 def _render_current_page(flash: str | None = None) -> str:
+    if not operational_control_is_adopted(CONTROL_ID):
+        return render_inactive_operation_page(title=PAGE_TITLE, control_id=CONTROL_ID)
+
     state = access_control_demo_state.get_state()
     result = evaluate_access_control(state.accounts, state.control, state.cycle)
     control_suggestions = intake_demo_state.get_state().control_suggestions
@@ -43,6 +50,12 @@ def _redirect_with_flash(action_key: str) -> RedirectResponse:
     return RedirectResponse(url=f"/access-control?flash={quote(message)}", status_code=303)
 
 
+def _blocked_action() -> RedirectResponse | None:
+    if operational_control_is_adopted(CONTROL_ID):
+        return None
+    return RedirectResponse(url="/access-control", status_code=303)
+
+
 @router.get("", response_class=HTMLResponse)
 def access_control_page(flash: str | None = None) -> str:
     return _render_current_page(flash)
@@ -50,24 +63,36 @@ def access_control_page(flash: str | None = None) -> str:
 
 @router.post("/actions/complete-account-reviews")
 def complete_account_reviews() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     access_control_demo_state.complete_missing_account_reviews()
     return _redirect_with_flash("complete-account-reviews")
 
 
 @router.post("/actions/remove-unnecessary-accounts")
 def remove_unnecessary_accounts() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     access_control_demo_state.remove_unnecessary_accounts()
     return _redirect_with_flash("remove-unnecessary-accounts")
 
 
 @router.post("/actions/complete-review-cycle")
 def complete_review_cycle() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     access_control_demo_state.complete_review_cycle()
     return _redirect_with_flash("complete-review-cycle")
 
 
 @router.post("/actions/approve-review-cycle")
 def approve_review_cycle() -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
     access_control_demo_state.approve_review_cycle()
     return _redirect_with_flash("approve-review-cycle")
 
