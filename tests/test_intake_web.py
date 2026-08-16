@@ -87,7 +87,7 @@ def test_case2_submitting_answers_generates_candidates_and_suggestions():
     suggestion_names = {s.name for s in intake_demo_state.get_state().control_suggestions}
     assert "個人情報保護教育" in suggestion_names
     assert "委託先管理" in suggestion_names
-    assert "STEP4のリスク確認を完了すると、管理策候補を確認できるようになります。" in response.text
+    assert "STEP4のリスク判断と評価確認を完了すると、管理策候補を確認できるようになります。" in response.text
 
 
 def test_answers_are_reflected_when_changed():
