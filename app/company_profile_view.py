@@ -33,6 +33,26 @@ def _input(
     """
 
 
+def _setup_status_sync_script(configured: bool) -> str:
+    """STEP0保存済みなら、従来描画の「未着手」を利用者向けに「設定中」へ揃える。"""
+
+    if not configured:
+        return ""
+    return """
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const badge = document.querySelector(".setup-status .status-badge");
+      if (!badge) return;
+      if (badge.textContent.trim() === "未着手") {
+        badge.textContent = "設定中";
+        badge.classList.remove("not-started");
+        badge.classList.add("needs-action");
+      }
+    });
+    </script>
+    """
+
+
 def render_company_section() -> str:
     profile = company_profile.get_state()
     status = "保存済み" if profile.configured else "未保存（現在はデモ初期値）"
@@ -130,6 +150,7 @@ def render_company_section() -> str:
     )
 
     return f"""
+    {_setup_status_sync_script(profile.configured)}
     <section class="step" id="step0">
       <h2>STEP 0　会社・PMS基本情報</h2>
       <p>申請・文書・教育・監査などで繰り返し使う基本情報を一度だけ登録します。未定の担当者情報は後から追記できます。</p>
