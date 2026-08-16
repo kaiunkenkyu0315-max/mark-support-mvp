@@ -4,16 +4,16 @@ from fastapi.responses import HTMLResponse
 from app import access_control_demo_state, demo_state, intake_demo_state, paper_demo_state, vendor_demo_state
 from app.access_control import evaluate_access_control
 from app.access_control_routes import router as access_control_router
-from app.dashboard import build_dashboard_data
+from app.dashboard import TodoItem, build_dashboard_data
 from app.dashboard_view import render_dashboard_page
 from app.document_routes import get_current_documents
 from app.document_routes import router as document_router
 from app.education import evaluate_training
 from app.education_routes import router as education_router
-from app.intake_demo_state import get_setup_status
 from app.intake_routes import router as intake_router
 from app.paper import evaluate_paper_management
 from app.paper_routes import router as paper_router
+from app.setup_progress import get_effective_setup_status
 from app.vendor_routes import router as vendor_router
 from app.vendors import evaluate_vendors
 
@@ -43,7 +43,7 @@ def index() -> str:
     """
 
     intake_state = intake_demo_state.get_state()
-    setup_status = get_setup_status(intake_state)
+    setup_status = get_effective_setup_status(intake_state)
 
     education_state = demo_state.get_state()
     education_result = evaluate_training(
@@ -76,5 +76,15 @@ def index() -> str:
         access_control_result=access_control_result,
         paper_result=paper_result,
     )
+
+    # STEP0だけ保存済みの場合は、次の工程を明確にSTEP1へ案内する。
+    if setup_status.value == "in_progress" and not intake_state.answers_submitted:
+        dashboard_data.todo_items = [
+            TodoItem(
+                area="業務情報",
+                message="会社・PMS基本情報は保存済みです。次に業務情報へ回答してください。",
+                link="/setup#step1",
+            )
+        ]
 
     return render_dashboard_page(APP_NAME, dashboard_data)
