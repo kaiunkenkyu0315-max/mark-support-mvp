@@ -1,16 +1,32 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import paper_demo_state
+from app import intake_demo_state, paper_demo_state
+from app.intake_schemas import ControlDecisionStatus, ControlSuggestion
 from app.main import app
 
 client = TestClient(app)
 
 
+def _adopt_paper_control() -> None:
+    intake_demo_state.get_state().control_suggestions.append(
+        ControlSuggestion(
+            control_id="paper_management",
+            name="紙媒体の保管・持出し・廃棄管理",
+            reason="テスト用",
+            status=ControlDecisionStatus.ADOPTED,
+            link_url="/paper",
+        )
+    )
+
+
 @pytest.fixture(autouse=True)
 def reset_paper_state():
+    intake_demo_state.reset_state()
+    _adopt_paper_control()
     paper_demo_state.reset_state()
     yield
+    intake_demo_state.reset_state()
     paper_demo_state.reset_state()
 
 
