@@ -1,8 +1,9 @@
-"""STEP2 個人情報確認の一括回答UI。
+"""STEP2 個人情報確認の一括回答UIと、STEP3の段階表示。
 
-既存の setup ページ描画を土台にしつつ、STEP2だけを
+既存の setup ページ描画を土台にしつつ、STEP2を
 「候補ごとの個別ボタン」から「はい／いいえの一括保存」へ置き換える。
-MVPの既存画面構造を大きく崩さず、入力負荷と画面リロード回数を減らすための薄い表示層。
+さらにSTEP3は必要項目を削らず、個人情報ごとの詳細を1件ずつ開く表示にして、
+入力負荷ではなく同時に見える情報量を減らす。
 """
 
 from __future__ import annotations
@@ -15,6 +16,103 @@ from app.intake_view import render_setup_page
 
 _STEP2_START = '<section class="step" id="step2">'
 _STEP2_END = "</section>"
+
+_STEP3_STYLE = """
+<style>
+  #step3 .candidate-item.ledger-collapsible {
+    padding: 0;
+    overflow: hidden;
+  }
+  .ledger-entry-toggle {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.8rem 1rem;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-weight: bold;
+  }
+  .ledger-entry-toggle:hover { background: #eeeeee; }
+  .ledger-entry-toggle::before {
+    content: "▶";
+    display: inline-block;
+    width: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .ledger-collapsible.is-open .ledger-entry-toggle::before { content: "▼"; }
+  .ledger-entry-state {
+    margin-left: 0.6rem;
+    font-size: 0.9rem;
+    font-weight: normal;
+  }
+  .ledger-entry-state.complete { color: #0a7a0a; }
+  .ledger-entry-state.incomplete { color: #b30000; }
+  .ledger-entry-body {
+    display: none;
+    padding: 0 1rem 1rem;
+  }
+  .ledger-collapsible.is-open .ledger-entry-body { display: block; }
+</style>
+"""
+
+_STEP3_SCRIPT = """
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const entries = Array.from(document.querySelectorAll("#step3 .candidate-list > .candidate-item"));
+  if (!entries.length) return;
+
+  let firstIncomplete = null;
+
+  entries.forEach(function (entry) {
+    const nameNode = entry.querySelector(".candidate-name");
+    if (!nameNode) return;
+
+    const isComplete = Boolean(entry.querySelector(".ledger-entry-complete"));
+    const statusLabel = isComplete ? "入力済み" : "未入力";
+
+    const originalChildren = Array.from(entry.childNodes);
+    const body = document.createElement("div");
+    body.className = "ledger-entry-body";
+    originalChildren.forEach(function (child) { body.appendChild(child); });
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ledger-entry-toggle";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.innerHTML = nameNode.textContent +
+      '<span class="ledger-entry-state ' + (isComplete ? "complete" : "incomplete") + '">' +
+      statusLabel + "</span>";
+
+    entry.classList.add("ledger-collapsible");
+    entry.appendChild(toggle);
+    entry.appendChild(body);
+
+    if (!isComplete && firstIncomplete === null) firstIncomplete = entry;
+
+    toggle.addEventListener("click", function () {
+      const willOpen = !entry.classList.contains("is-open");
+      entries.forEach(function (other) {
+        other.classList.remove("is-open");
+        const otherToggle = other.querySelector(":scope > .ledger-entry-toggle");
+        if (otherToggle) otherToggle.setAttribute("aria-expanded", "false");
+      });
+      if (willOpen) {
+        entry.classList.add("is-open");
+        toggle.setAttribute("aria-expanded", "true");
+      }
+    });
+  });
+
+  if (firstIncomplete) {
+    firstIncomplete.classList.add("is-open");
+    const toggle = firstIncomplete.querySelector(":scope > .ledger-entry-toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "true");
+  }
+});
+</script>
+"""
 
 
 def _checked(candidate_status: PersonalInformationCandidateStatus, expected: str, needs_review: bool) -> str:
@@ -71,15 +169,24 @@ def render_step2_batch_section(state: IntakeDemoState) -> str:
     """
 
 
+def _add_step3_progressive_disclosure(html: str) -> str:
+    """STEP3の各台帳項目を、ブラウザ側で1件ずつ開く表示にする。"""
+
+    if "</head>" in html:
+        html = html.replace("</head>", _STEP3_STYLE + "\n</head>", 1)
+    if "</body>" in html:
+        html = html.replace("</body>", _STEP3_SCRIPT + "\n</body>", 1)
+    return html
+
+
 def render_setup_page_with_batch_step2(state: IntakeDemoState) -> str:
-    """既存 setup ページのSTEP2だけを一括回答UIへ差し替える。"""
+    """既存 setup ページのSTEP2を一括回答化し、STEP3の見通しを改善する。"""
 
     html = render_setup_page(state)
     start = html.find(_STEP2_START)
-    if start == -1:
-        return html
-    end = html.find(_STEP2_END, start)
-    if end == -1:
-        return html
-    end += len(_STEP2_END)
-    return html[:start] + render_step2_batch_section(state) + html[end:]
+    if start != -1:
+        end = html.find(_STEP2_END, start)
+        if end != -1:
+            end += len(_STEP2_END)
+            html = html[:start] + render_step2_batch_section(state) + html[end:]
+    return _add_step3_progressive_disclosure(html)
