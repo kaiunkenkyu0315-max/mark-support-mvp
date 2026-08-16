@@ -48,7 +48,7 @@ def test_step4_is_locked_while_ledger_is_incomplete():
     assert response.status_code == 200
     assert "STEP3の個人情報台帳を完了すると、リスク候補を確認できるようになります。" in response.text
     assert 'action="/setup/risks/' not in response.text
-    assert "STEP4のリスク確認を完了すると、管理策候補を確認できるようになります。" in response.text
+    assert "STEP4のリスク判断と評価確認を完了すると、管理策候補を確認できるようになります。" in response.text
 
 
 def test_step4_unlocks_after_ledger_completion_but_step5_stays_locked():
@@ -60,7 +60,7 @@ def test_step4_unlocks_after_ledger_completion_but_step5_stays_locked():
     assert "STEP3の個人情報台帳を完了すると、リスク候補を確認できるようになります。" not in response.text
     assert "不正アクセス" in response.text
     assert 'action="/setup/risks/' in response.text
-    assert "STEP4のリスク確認を完了すると、管理策候補を確認できるようになります。" in response.text
+    assert "STEP4のリスク判断と評価確認を完了すると、管理策候補を確認できるようになります。" in response.text
 
 
 def test_step5_unlocks_after_all_risk_decisions_and_step6_stays_locked():
@@ -72,7 +72,7 @@ def test_step5_unlocks_after_all_risk_decisions_and_step6_stays_locked():
 
     response = client.get("/setup")
 
-    assert "STEP4のリスク確認を完了すると、管理策候補を確認できるようになります。" not in response.text
+    assert "STEP4のリスク判断と評価確認を完了すると、管理策候補を確認できるようになります。" not in response.text
     assert "採用する" in response.text
     assert "STEP5の管理策判断を完了すると、運用画面へ進めるようになります。" in response.text
 
