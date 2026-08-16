@@ -57,4 +57,88 @@ def _blocked_action() -> RedirectResponse | None:
     return RedirectResponse(url="/paper", status_code=303)
 
 
-@app_placeholder
+@router.get("", response_class=HTMLResponse)
+def paper_page(flash: str | None = None) -> str:
+    return _render_current_page(flash)
+
+
+@router.post("/actions/confirm-storage-lock")
+def confirm_storage_lock(
+    storage_location: str | None = Form(None),
+    locked: str | None = Form(None),
+    checked_on: str | None = Form(None),
+    checked_by: str | None = Form(None),
+    check_method: str | None = Form(None),
+    evidence: str | None = Form(None),
+) -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
+    paper_demo_state.confirm_storage_lock(
+        locked=locked != "no",
+        checked_on=checked_on,
+        checked_by=checked_by,
+        check_method=check_method,
+        evidence=evidence,
+        storage_location=storage_location,
+    )
+    return _redirect_with_flash("confirm-storage-lock")
+
+
+@router.post("/actions/define-take-out-rule")
+def define_take_out_rule(
+    rule: str | None = Form(None),
+    defined_on: str | None = Form(None),
+    defined_by: str | None = Form(None),
+) -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
+    paper_demo_state.define_take_out_rule(
+        rule=rule,
+        defined_on=defined_on,
+        defined_by=defined_by,
+    )
+    return _redirect_with_flash("define-take-out-rule")
+
+
+@router.post("/actions/confirm-disposal")
+def confirm_disposal(
+    disposal_method: str | None = Form(None),
+    confirmed: str | None = Form(None),
+    confirmed_on: str | None = Form(None),
+    confirmed_by: str | None = Form(None),
+    evidence: str | None = Form(None),
+) -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
+    paper_demo_state.confirm_disposal(
+        confirmed=confirmed != "no",
+        confirmed_on=confirmed_on,
+        confirmed_by=confirmed_by,
+        evidence=evidence,
+        disposal_method=disposal_method,
+    )
+    return _redirect_with_flash("confirm-disposal")
+
+
+@router.post("/actions/approve")
+def approve_status(
+    approved_by: str | None = Form(None),
+    approved_at: str | None = Form(None),
+) -> RedirectResponse:
+    blocked = _blocked_action()
+    if blocked:
+        return blocked
+    paper_demo_state.approve_status(
+        approved_by=approved_by,
+        approved_at=approved_at,
+    )
+    return _redirect_with_flash("approve")
+
+
+@router.post("/reset")
+def reset() -> RedirectResponse:
+    paper_demo_state.reset_state()
+    return RedirectResponse(url="/paper", status_code=303)
