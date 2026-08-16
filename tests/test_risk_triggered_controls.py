@@ -249,14 +249,20 @@ def test_paper_page_does_not_contradict_setup_not_applicable_decision():
 
 
 def test_top_page_does_not_show_operating_status_for_unadopted_controls():
-    """setupで未採用（未提示含む）の間は、トップページで「適合／要対応」のような
-    運用中のステータスを表示せず、「未採用」であることが分かるようにする。"""
+    """初期設定が未着手の間は、トップページで「適合／要対応」のような運用中の
+    ステータスを表示せず、「初期設定待ち」であることが分かるようにする。
+
+    初期設定を始めていない段階では、管理策が採用されなかった（未採用）のか
+    まだ判断できていないだけなのかを区別できないため、「未採用」ではなく
+    中立な「初期設定待ち」を表示する。"""
 
     response = client.get("/")
 
     assert "アクセス権限管理" in response.text
     assert "紙媒体管理" in response.text
-    assert "未採用" in response.text
+    assert ">初期設定待ち<" in response.text
+    assert ">適合<" not in response.text
+    assert ">要対応<" not in response.text
 
 
 def test_top_page_shows_operating_status_once_adopted():

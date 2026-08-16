@@ -166,6 +166,21 @@ def _operational_todo_items(
     return [TodoItem(area=name, message=message, link=link) for message in issue_messages]
 
 
+def _setup_not_started_operational_status() -> tuple[str, str, str]:
+    """初期設定が未着手のときに、運用状況の各エリアへ一律で使う状態。
+
+    この段階ではどの管理策も候補として提示されておらず（suggestionは必ずNone）、
+    対象になるかどうかもまだ判断できない。「未採用」（採用可否を判断した結果、
+    採用しなかった）と誤読されないよう、「初期設定待ち」という中立な状態を返す。
+    """
+
+    return (
+        "初期設定待ち",
+        "not-started",
+        "初期設定がまだ始まっていないため、この管理策が対象になるかどうかまだ判断できません。まず初期設定を開始してください。",
+    )
+
+
 def _document_todo_items(documents: list[Document]) -> list[TodoItem]:
     items: list[TodoItem] = []
     for document in documents:
@@ -215,7 +230,10 @@ def build_dashboard_data(
     for control_id, name, link in OPERATIONAL_AREAS:
         suggestion = find_control_suggestion(control_suggestions, control_id)
         result = results_by_control_id[control_id]
-        label, css_class, note = operational_status(suggestion, has_issues=bool(result.issues))
+        if setup_status == SetupStatus.NOT_STARTED:
+            label, css_class, note = _setup_not_started_operational_status()
+        else:
+            label, css_class, note = operational_status(suggestion, has_issues=bool(result.issues))
         operational_areas.append(
             OperationalAreaSummary(
                 control_id=control_id,
@@ -232,7 +250,11 @@ def build_dashboard_data(
             _operational_todo_items(control_id, name, link, suggestion, issue_messages)
         )
 
-    todo_items.extend(_document_todo_items(documents))
+    if setup_status != SetupStatus.NOT_STARTED:
+        # 初期設定が未着手の間は、確認済み個人情報がないこと自体が原因の
+        # 「情報不足」を、対応可能なtodoとして出さない（初期設定側の
+        # todo（_setup_todo_items）だけを見せる）。
+        todo_items.extend(_document_todo_items(documents))
 
     return DashboardData(
         setup_status=setup_status,

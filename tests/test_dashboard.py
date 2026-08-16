@@ -71,6 +71,37 @@ def test_dashboard_does_not_show_needs_action_before_any_setup():
     assert "要対応" not in response.text
 
 
+# --- 1b. 初期設定未着手時、運用状況の各エリアは「初期設定待ち」（「未採用」ではない） ---
+
+
+def test_dashboard_shows_setup_pending_for_operational_areas_before_setup_starts():
+    response = client.get("/")
+
+    assert ">初期設定待ち<" in response.text
+    assert ">適合<" not in response.text
+    assert ">要対応<" not in response.text
+
+
+# --- 1c. 初期設定未着手時、文書カードは対応可能な「情報不足」を示さない ---
+
+
+def test_dashboard_document_card_does_not_show_actionable_shortage_before_setup_starts():
+    response = client.get("/")
+
+    assert "情報不足" not in response.text
+
+
+# --- 1d. 初期設定未着手時、「今やること」は初期設定の1件のみ ---
+
+
+def test_dashboard_todo_list_has_only_setup_item_before_setup_starts():
+    response = client.get("/")
+
+    assert "今やること　1件" in response.text
+    assert "の入力が不足しています" not in response.text
+    assert "初期設定" in response.text
+
+
 # --- 2. suggested管理策 → 要確認または採用判断待ち ---
 
 

@@ -49,7 +49,7 @@ def _render_personal_information_card(data: DashboardData) -> str:
         <li>確認済み：{data.personal_information_confirmed_count}件</li>
         <li class="{incomplete_class}">入力不足：{data.personal_information_incomplete_count}件</li>
       </ul>
-      <p><a href="/setup">確認する</a></p>
+      <p><a href="/setup">個人情報を確認</a></p>
     </div>
     """
 
@@ -62,7 +62,7 @@ def _render_risk_card(data: DashboardData) -> str:
         <li>確認済み：{data.risk_confirmed_count}件</li>
         <li>高：{data.risk_high_count}件／中：{data.risk_medium_count}件／低：{data.risk_low_count}件</li>
       </ul>
-      <p><a href="/setup">確認する</a></p>
+      <p><a href="/setup">リスクを確認</a></p>
     </div>
     """
 
@@ -77,23 +77,30 @@ def _render_controls_card(data: DashboardData) -> str:
         <li>非適用：{data.controls_not_applicable_count}件</li>
         <li class="{needs_review_class}">要確認：{data.controls_needs_review_count}件</li>
       </ul>
-      <p><a href="/setup">確認する</a></p>
+      <p><a href="/setup">管理策を確認</a></p>
     </div>
     """
 
 
 def _render_documents_card(data: DashboardData) -> str:
-    draft_class = "needs-action" if data.documents_draft_count else "compliant"
+    if data.setup_status == SetupStatus.NOT_STARTED:
+        # 確認済み個人情報がまだ存在しないこと自体が原因の「情報不足」を、
+        # 対応可能な問題であるかのように見せない。初期設定を始めるまでは
+        # 中立な「初期設定待ち」を示す。
+        figures = '<li>初期設定待ち：文書の生成にはまず初期設定が必要です。</li>'
+    else:
+        draft_class = "needs-action" if data.documents_draft_count else "compliant"
+        figures = f"""
+        <li>準備完了：{data.documents_ready_count}件</li>
+        <li class="{draft_class}">情報不足：{data.documents_draft_count}件</li>
+        <li>未生成：{data.documents_not_applicable_count}件</li>
+        """
     return f"""
     <div class="summary-card">
       <h3>文書管理</h3>
       <p>個人情報管理台帳・教育手順・委託先管理手順など、管理策に対応するPMS文書のプレビューです。</p>
-      <ul class="summary-figures">
-        <li>準備完了：{data.documents_ready_count}件</li>
-        <li class="{draft_class}">情報不足：{data.documents_draft_count}件</li>
-        <li>未生成：{data.documents_not_applicable_count}件</li>
-      </ul>
-      <p><a href="/documents">確認する</a></p>
+      <ul class="summary-figures">{figures}</ul>
+      <p><a href="/documents">文書を確認</a></p>
     </div>
     """
 
