@@ -12,6 +12,7 @@ from app import (
     demo_state,
     intake_demo_state,
     paper_demo_state,
+    pms_review_demo_state,
     vendor_demo_state,
 )
 from app.intake_schemas import QuestionnaireAnswers
@@ -90,3 +91,31 @@ def load_operational_review_preset() -> None:
     vendor_demo_state.reset_state()
     access_control_demo_state.reset_state()
     paper_demo_state.reset_state()
+    pms_review_demo_state.reset_state()
+
+
+def load_pms_review_preset() -> None:
+    """初期設定＋4管理策運用を完了し、内部監査からすぐ検証できる状態を作る。"""
+
+    load_operational_review_preset()
+
+    demo_state.register_material_evidence()
+    demo_state.complete_all_trainings()
+    demo_state.register_missing_comprehension()
+    demo_state.approve_plan()
+
+    vendor_demo_state.complete_missing_initial_assessments()
+    vendor_demo_state.confirm_missing_contracts()
+    vendor_demo_state.complete_missing_periodic_assessments()
+
+    access_control_demo_state.complete_missing_account_reviews()
+    access_control_demo_state.remove_unnecessary_accounts()
+    access_control_demo_state.complete_review_cycle()
+    access_control_demo_state.approve_review_cycle()
+
+    paper_demo_state.confirm_storage_lock()
+    paper_demo_state.define_take_out_rule()
+    paper_demo_state.confirm_disposal()
+    paper_demo_state.approve_status()
+
+    pms_review_demo_state.reset_state()
