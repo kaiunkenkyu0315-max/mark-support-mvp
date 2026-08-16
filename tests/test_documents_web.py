@@ -172,11 +172,23 @@ def test_document_detail_shows_related_control_name():
 # --- トップページ・setupからの導線 ---
 
 
-def test_top_page_links_to_documents():
+def test_top_page_links_to_setup_before_personal_information_is_confirmed():
+    response = client.get("/")
+
+    assert "/documents" not in response.text
+    assert "初期設定待ち" in response.text
+    assert "/setup" in response.text
+
+
+def test_top_page_links_to_documents_after_personal_information_is_confirmed():
+    _submit_answers(has_employees=True)
+    target = intake_demo_state.get_state().candidates[0]
+    client.post(f"/setup/candidates/{target.id}/confirm")
+
     response = client.get("/")
 
     assert "/documents" in response.text
-    assert "文書" in response.text
+    assert "文書を確認" in response.text
 
 
 def test_setup_page_links_to_documents():
