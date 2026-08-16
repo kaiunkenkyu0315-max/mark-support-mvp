@@ -1,18 +1,34 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import vendor_demo_state
+from app import intake_demo_state, vendor_demo_state
+from app.intake_schemas import ControlDecisionStatus, ControlSuggestion
 from app.main import app
 
 client = TestClient(app)
 
 
+def _adopt_vendor_control() -> None:
+    intake_demo_state.get_state().control_suggestions.append(
+        ControlSuggestion(
+            control_id="vendor_management",
+            name="委託先管理",
+            reason="テスト用",
+            status=ControlDecisionStatus.ADOPTED,
+            link_url="/vendors",
+        )
+    )
+
+
 @pytest.fixture(autouse=True)
 def reset_vendor_state():
-    """各テストの前後でデモ状態を初期化し、テスト間の状態汚染を防ぐ。"""
+    """各テストを、委託先管理策が採用済みの運用状態から開始する。"""
 
+    intake_demo_state.reset_state()
+    _adopt_vendor_control()
     vendor_demo_state.reset_state()
     yield
+    intake_demo_state.reset_state()
     vendor_demo_state.reset_state()
 
 
