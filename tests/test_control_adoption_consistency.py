@@ -184,7 +184,7 @@ def test_education_and_documents_pages_agree_when_never_answered_in_setup():
     """setupで一度も回答していない状態では、education・documentsとも「未確定」で一致する。"""
 
     education_response = client.get("/education")
-    assert "未確認（setupで未回答）" in education_response.text
+    assert "未確認（初期設定で未回答）" in education_response.text
 
     document_response = client.get("/documents/education_procedure")
     assert "未生成" in document_response.text

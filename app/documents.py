@@ -48,12 +48,12 @@ def _not_adopted_message(control_id: str, suggestion: ControlSuggestion | None) 
     if suggestion is None:
         return (
             f"管理策『{name}』がまだ候補として提示されていません"
-            "（setupで業務情報を回答してください）。"
+            "（初期設定で業務情報を回答してください）。"
         )
     if suggestion.status == ControlDecisionStatus.NOT_APPLICABLE:
         reason = suggestion.non_applicable_reason or "理由の記載なし"
         return f"管理策『{name}』は非適用と判断されています（理由：{reason}）。"
-    return f"管理策『{name}』はまだ採用されていません（setupで採用してください）。"
+    return f"管理策『{name}』はまだ採用されていません（初期設定で採用してください）。"
 
 
 def _confirmed_candidates(
@@ -75,7 +75,7 @@ def _ledger_missing_fields(candidates: list[PersonalInformationCandidate]) -> li
 
     confirmed = _confirmed_candidates(candidates)
     if not confirmed:
-        return ["確認済みの個人情報がありません（setupのSTEP3で個人情報を確認してください）"]
+        return ["確認済みの個人情報がありません（初期設定のSTEP3で個人情報を確認してください）"]
 
     missing: list[str] = []
     for candidate in confirmed:

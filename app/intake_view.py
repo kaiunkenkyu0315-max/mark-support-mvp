@@ -9,9 +9,11 @@
 
 from __future__ import annotations
 
+from app.control_status import SETUP_STATUS_CSS_CLASS, SETUP_STATUS_LABELS
 from app.intake import (
     CONTROL_STATUS_LABELS,
     LEDGER_FIELD_LABELS,
+    find_control_suggestion,
     is_ledger_complete,
     is_ledger_entry_complete,
     missing_ledger_fields,
@@ -22,24 +24,24 @@ from app.intake_schemas import (
     ControlSuggestion,
     PersonalInformationCandidate,
     PersonalInformationCandidateStatus,
-    SetupStatus,
 )
 from app.risk import CONTROL_RELATED_RISK_IDS, confirmed_risk_reasons_for_control, evaluate_risk
 from app.risk_schemas import RiskCandidate, RiskCandidateStatus, RiskLevel
 
-SETUP_STATUS_LABELS = {
-    SetupStatus.NOT_STARTED: "未着手",
-    SetupStatus.IN_PROGRESS: "設定中",
-    SetupStatus.COMPLETE: "完了",
-}
-
-SETUP_STATUS_CSS_CLASS = {
-    SetupStatus.NOT_STARTED: "not-started",
-    SetupStatus.IN_PROGRESS: "needs-action",
-    SetupStatus.COMPLETE: "compliant",
-}
-
 QUESTION_LABELS = dict(QUESTIONS)
+
+# 各質問の短い補足説明（利用者向け）。専門知識がなくても回答できるよう、
+# 具体例を1文だけ添える。長文ヘルプにはしない。
+QUESTION_HELP: dict[str, str] = {
+    "has_employees": "例：正社員・パート・アルバイトを問わず、雇用している人がいれば『はい』。",
+    "recruits_people": "例：求人募集・応募者の書類選考や面接を行っていれば『はい』。",
+    "manages_customer_contacts": "例：顧客・取引先の担当者名や連絡先を名簿や名刺で管理していれば『はい』。",
+    "receives_inquiries": "例：問い合わせフォームやメールで氏名・連絡先を受け取っていれば『はい』。",
+    "outsources_personal_data_processing": "例：給与計算・採用管理などを外部の会社やクラウドサービスに委託していれば『はい』。",
+    "uses_external_cloud_services": "例：勤怠管理・採用管理・顧客管理等をクラウドサービス（SaaS）で利用していれば『はい』。",
+    "stores_personal_data_on_paper": "例：履歴書、雇用契約書、申込書、顧客名簿等をファイルやキャビネットで保管している場合は『はい』。",
+    "allows_remote_access": "例：自宅や外出先から社内システムや顧客情報にアクセスすることがあれば『はい』。",
+}
 
 CANDIDATE_STATUS_LABELS = {
     PersonalInformationCandidateStatus.CANDIDATE: "未確認（候補）",
@@ -125,6 +127,7 @@ def _render_step1_answers(state: IntakeDemoState) -> str:
         f"""
         <div class="question">
           <p>{_escape(question_text)}</p>
+          <p class="question-help">{_escape(QUESTION_HELP.get(field, ""))}</p>
           {_radio(field, "yes", "はい", getattr(state.answers, field))}
           {_radio(field, "no", "いいえ", getattr(state.answers, field))}
         </div>
@@ -228,7 +231,83 @@ def _render_step3_confirmation(state: IntakeDemoState) -> str:
     """
 
 
-def _render_ledger_entry(candidate: PersonalInformationCandidate) -> str:
+def _related_controls_for_candidate(
+    state: IntakeDemoState, candidate: PersonalInformationCandidate
+) -> list[ControlSuggestion]:
+    """confirmed個人情報1件について、既存の管理策推薦関係から説明できる関連管理策を返す。
+
+    STEP5の _related_candidates()（管理策→個人情報）と対になる、逆方向
+    （個人情報→管理策）の参照。新しい関連付けルールは作らず、STEP5と同じ判定
+    基準（教育：対象本人区分が「従業員」／委託先管理：外部委託あり）のみを使う。
+    管理策候補がまだ一度も提示されていない場合は関連として表示しない
+    （関係を捏造しない）。
+    """
+
+    related: list[ControlSuggestion] = []
+    education = find_control_suggestion(state.control_suggestions, "education")
+    if education is not None and candidate.subject_type == "従業員":
+        related.append(education)
+    vendor_management = find_control_suggestion(state.control_suggestions, "vendor_management")
+    if vendor_management is not None and candidate.outsourced:
+        related.append(vendor_management)
+    return related
+
+
+def _tristate_display(value: bool | None) -> str:
+    if value is None:
+        return "（未回答）"
+    return "あり" if value else "なし"
+
+
+def _render_ledger_management_summary(
+    state: IntakeDemoState, candidate: PersonalInformationCandidate
+) -> str:
+    """confirmed個人情報1件について「どう管理しているか」を見やすくまとめる。
+
+    台帳フォーム（入力用）とは別に、現在の入力値を読みやすい形で提示する。
+    関連する管理策は _related_controls_for_candidate() で説明できる範囲のみ表示する。
+    """
+
+    def _line(label: str, value: str | None) -> str:
+        return f"<li>{label}：{_escape(value) if value else '（未入力）'}</li>"
+
+    items_html = "".join(
+        [
+            _line("取得方法", candidate.acquisition_method),
+            _line("保管方法", candidate.storage_method),
+            _line("保管場所", candidate.storage_location),
+            f"<li>委託：{_tristate_display(candidate.outsourced)}</li>",
+            f"<li>第三者提供：{_tristate_display(candidate.third_party_provided)}</li>",
+            _line("保存期間", candidate.retention_period),
+            _line("廃棄方法", candidate.disposal_method),
+            _line("管理責任者", candidate.responsible_role),
+        ]
+    )
+
+    related = _related_controls_for_candidate(state, candidate)
+    if related:
+        related_items = "".join(
+            f'<li><a href="{suggestion.link_url}">{_escape(suggestion.name)}</a>'
+            f"（{CONTROL_STATUS_LABELS[suggestion.status]}）</li>"
+            for suggestion in related
+        )
+        related_html = (
+            '<p class="ledger-related-title">関連する管理策：</p>'
+            f'<ul class="ledger-related-list">{related_items}</ul>'
+        )
+    else:
+        related_html = '<p class="ledger-related-title">関連する管理策：（現在の回答からは特定できません）</p>'
+
+    return f"""
+    <div class="ledger-management-summary">
+      <p class="ledger-management-title">管理方法：</p>
+      <ul class="ledger-management-list">{items_html}</ul>
+      {related_html}
+    </div>
+    """
+
+
+def _render_ledger_entry(state: IntakeDemoState, candidate: PersonalInformationCandidate) -> str:
     review_note = f'<p class="needs-review">⚠ {NEEDS_REVIEW_NOTE}</p>' if candidate.needs_review else ""
     entry_complete = is_ledger_entry_complete(candidate)
     if entry_complete:
@@ -251,6 +330,7 @@ def _render_ledger_entry(candidate: PersonalInformationCandidate) -> str:
       </p>
       {review_note}
       {entry_status_note}
+      {_render_ledger_management_summary(state, candidate)}
       <form method="post" action="/setup/candidates/{candidate.id}/ledger" class="ledger-form">
         <label>取得方法
           <input type="text" name="acquisition_method" value="{_escape(candidate.acquisition_method or '')}">
@@ -302,7 +382,7 @@ def _render_ledger_section(state: IntakeDemoState) -> str:
     ledger_complete = is_ledger_complete(state.candidates)
     ledger_status_label = "完了" if ledger_complete else "未完了"
     ledger_status_class = "compliant" if ledger_complete else "needs-action"
-    rows = "".join(_render_ledger_entry(candidate) for candidate in confirmed)
+    rows = "".join(_render_ledger_entry(state, candidate) for candidate in confirmed)
 
     return f"""
     <section class="ledger">
@@ -558,7 +638,7 @@ def _render_step6_summary(state: IntakeDemoState) -> str:
         )
         body = f'<p>採用した管理策の運用画面に進めます。</p><ul class="next-links">{links}</ul>'
 
-    documents_link = '<p><a href="/documents">文書を確認する</a></p>'
+    documents_link = '<p><a href="/documents">文書管理を確認する</a></p>'
 
     return f"""
     <section class="step">
@@ -618,7 +698,14 @@ def render_setup_page(state: IntakeDemoState) -> str:
     .ledger-form-row label {{ display: inline-block; margin-right: 0.75rem; font-weight: normal; }}
     .question {{ margin-bottom: 0.75rem; }}
     .question p {{ margin: 0 0 0.3rem; font-weight: bold; }}
+    .question-help {{ font-weight: normal !important; font-size: 0.85rem; color: #777; }}
     .question label {{ margin-right: 1rem; }}
+    .ledger-management-summary {{
+      margin: 0.5rem 0; padding: 0.5rem 0.75rem; background: #fff; border: 1px solid #ddd; border-radius: 4px;
+    }}
+    .ledger-management-title, .ledger-related-title {{ font-weight: bold; margin: 0 0 0.3rem; }}
+    .ledger-management-list {{ margin: 0 0 0.5rem; padding-left: 1.2rem; }}
+    .ledger-related-list {{ margin: 0; padding-left: 1.2rem; }}
     .candidate-list, .control-list, .risk-list {{ list-style: none; margin: 0; padding: 0; }}
     .candidate-item, .control-item, .risk-item {{
       padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-radius: 4px;

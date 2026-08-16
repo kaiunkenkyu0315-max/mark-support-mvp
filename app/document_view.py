@@ -104,10 +104,14 @@ def render_document_list_page(documents: list[Document]) -> str:
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>文書一覧 - Pマーク取得・運用支援ツール MVP</title>
+  <title>文書管理 - Pマーク取得・運用支援ツール MVP</title>
   <style>
     body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 900px; }}
     h1 {{ margin-bottom: 0.5rem; }}
+    .preview-disclaimer {{
+      padding: 0.6rem 1rem; margin-bottom: 1.5rem; border-radius: 4px;
+      background: #eef5fc; border-left: 4px solid #0a4a8a; color: #333; font-size: 0.9rem;
+    }}
     .document-list {{ list-style: none; margin: 0; padding: 0; }}
     .document-item {{
       padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-radius: 4px;
@@ -123,9 +127,14 @@ def render_document_list_page(documents: list[Document]) -> str:
 </head>
 <body>
   <p><a href="/">&laquo; トップへ戻る</a></p>
-  <h1>文書</h1>
-  <p>企業情報・確認済み個人情報・採用済み管理策から、標準テンプレートに基づいて構成した文書です。
+  <h1>文書管理（PMS文書）</h1>
+  <p>個人情報管理台帳・教育手順・委託先管理手順など、管理策に対応するPMS文書の一覧です。
+  企業情報・確認済み個人情報・採用済み管理策から、標準テンプレートに基づいて構成しています。
   AIによる自由作文は行っていません。</p>
+  <div class="preview-disclaimer">
+    現在の登録情報から生成した文書プレビューです。正式なWord／PDFファイルの保存や、
+    承認・版管理の機能は今後対応予定です。
+  </div>
   <ul class="document-list">{items}</ul>
 </body>
 </html>
@@ -149,6 +158,10 @@ def render_document_detail_page(document: Document) -> str:
   <style>
     body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 900px; }}
     h1 {{ margin-bottom: 0.5rem; }}
+    .preview-disclaimer {{
+      padding: 0.6rem 1rem; margin-bottom: 1rem; border-radius: 4px;
+      background: #eef5fc; border-left: 4px solid #0a4a8a; color: #333; font-size: 0.9rem;
+    }}
     .document-meta {{ padding: 1rem; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 1.5rem; }}
     .status-badge {{ display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; color: #fff; }}
     .status-badge.not-started {{ background: #666; }}
@@ -168,8 +181,11 @@ def render_document_detail_page(document: Document) -> str:
   </style>
 </head>
 <body>
-  <p><a href="/documents">&laquo; 文書一覧へ戻る</a></p>
+  <p><a href="/documents">&laquo; 文書管理へ戻る</a></p>
   <h1>{_escape(document.title)}</h1>
+  <div class="preview-disclaimer">
+    現在の登録情報から生成した文書プレビューです。正式版の保存・承認・版管理は今後対応予定です。
+  </div>
 
   <div class="document-meta">
     <p>状態：<span class="status-badge {status_class}">{status_label}</span></p>

@@ -9,30 +9,35 @@
 
 from __future__ import annotations
 
+from app.control_status import operational_status
 from app.intake import CONTROL_STATUS_LABELS, find_control_suggestion
-from app.intake_schemas import ControlSuggestion
+from app.intake_schemas import ControlDecisionStatus, ControlSuggestion
 from app.paper_demo_state import POLICY_CLAUSES, PaperDemoState
 from app.paper_schemas import PaperEvaluationResult, PaperEvaluationStatus, PaperIssue
 
-# 不足事項（rule_id）を、利用者向けの見出し・対応ボタンへ変換するための表示定義。
+# 不足事項（rule_id）を、利用者向けの見出し・対応ボタン・短い説明へ変換するための表示定義。
 ISSUE_DISPLAY = {
     "PAP-001": {
         "headline": "保管場所の施錠管理が未確認です",
+        "explain": "紙媒体の保管場所が施錠されているかを確認してください。",
         "action_label": "施錠管理を確認する",
         "action_url": "/paper/actions/confirm-storage-lock",
     },
     "PAP-002": {
         "headline": "持出しルールが未設定です",
+        "explain": "紙媒体を持ち出す際のルール（許可の得方・記録方法等）を定めてください。",
         "action_label": "持出しルールを設定する",
         "action_url": "/paper/actions/define-take-out-rule",
     },
     "PAP-003": {
         "headline": "廃棄確認が未実施です",
+        "explain": "不要になった紙媒体が、定めた方法で確実に廃棄されたことを確認してください。",
         "action_label": "廃棄確認を実施する",
         "action_url": "/paper/actions/confirm-disposal",
     },
     "PAP-004": {
         "headline": "実施結果が未承認です",
+        "explain": "紙媒体管理の実施結果を、責任者が確認し承認してください。",
         "action_label": "実施結果を承認する",
         "action_url": "/paper/actions/approve",
     },
@@ -48,15 +53,36 @@ def _issue_by_rule(result: PaperEvaluationResult, rule_id: str) -> PaperIssue | 
 
 
 def _setup_adoption_label(suggestion: ControlSuggestion | None) -> str:
-    """setupでの採用判断（正本）を表示用ラベルへ変換する。
+    """初期設定での採用判断（正本）を表示用ラベルへ変換する。
 
     この管理策自体（PaperControl）は採用可否の判断を持たないため、
-    ここでは必ずsetupのControlSuggestionを参照する。
+    ここでは必ず初期設定側のControlSuggestionを参照する。
     """
 
     if suggestion is None:
-        return "未確認（setupで未回答、またはリスク未確認）"
+        return "未確認（初期設定で未回答、またはリスク未確認）"
     return CONTROL_STATUS_LABELS[suggestion.status]
+
+
+def _render_adoption_notice(control_suggestions: list[ControlSuggestion]) -> str:
+    """この管理策が初期設定で採用済みかどうかを、画面冒頭で明示する。"""
+
+    suggestion = find_control_suggestion(control_suggestions, "paper_management")
+    if suggestion is not None and suggestion.status == ControlDecisionStatus.ADOPTED:
+        return ""
+    _, _, note = operational_status(suggestion, has_issues=False)
+    return f"""
+    <div class="adoption-notice">
+      <p>⚠ {_escape(note)}</p>
+      <p><a href="/setup">初期設定を確認する</a></p>
+    </div>
+    """
+
+
+def _render_flash(flash: str | None) -> str:
+    if not flash:
+        return ""
+    return f'<div class="flash-message">{_escape(flash)}</div>'
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +132,11 @@ def _render_todo_section(result: PaperEvaluationResult) -> str:
     for issue in result.issues:
         display = ISSUE_DISPLAY.get(issue.rule_id)
         headline = display["headline"] if display else issue.message
+        explain_html = (
+            f'<p class="todo-explain">{_escape(display["explain"])}</p>'
+            if display and display.get("explain")
+            else ""
+        )
 
         if display:
             action_html = (
@@ -119,6 +150,7 @@ def _render_todo_section(result: PaperEvaluationResult) -> str:
         items.append(
             '<li class="todo-item warning">'
             f'<p class="todo-headline">{_escape(headline)}</p>'
+            f"{explain_html}"
             f"{action_html}"
             "</li>"
         )
@@ -146,7 +178,7 @@ def _render_control_detail(
       <h3>紙媒体管理策</h3>
       <ul>
         <li>管理策名：{_escape(control.name)}</li>
-        <li>採用状態（setupでの判断）：{_setup_adoption_label(suggestion)}</li>
+        <li>採用状態（初期設定での判断）：{_setup_adoption_label(suggestion)}</li>
         <li>施錠管理の確認：{"必須" if control.lock_check_required else "任意"}</li>
         <li>持出しルールの設定：{"必須" if control.take_out_rule_required else "任意"}</li>
         <li>廃棄確認：{"必須" if control.disposal_check_required else "任意"}</li>
@@ -243,16 +275,25 @@ def render_paper_page(
     state: PaperDemoState,
     result: PaperEvaluationResult,
     control_suggestions: list[ControlSuggestion],
+    flash: str | None = None,
 ) -> str:
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>紙媒体管理デモ - Pマーク取得・運用支援ツール MVP</title>
+  <title>紙媒体管理 - Pマーク取得・運用支援ツール MVP</title>
   <style>
     body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 900px; }}
     h1 {{ margin-bottom: 0.5rem; }}
     section, details {{ margin-bottom: 1.5rem; }}
+    .flash-message {{
+      padding: 0.6rem 1rem; margin-bottom: 1rem; border-radius: 4px;
+      background: #eefaf0; border-left: 4px solid #0a7a0a; font-weight: bold;
+    }}
+    .adoption-notice {{
+      padding: 0.6rem 1rem; margin-bottom: 1rem; border-radius: 4px;
+      background: #f5f5f5; border-left: 4px solid #888; color: #555;
+    }}
     .status-summary {{ padding: 1rem; border: 1px solid #ccc; border-radius: 4px; }}
     .control-title {{ font-size: 1.1rem; font-weight: bold; margin: 0 0 0.5rem; }}
     .status-badge {{
@@ -260,6 +301,7 @@ def render_paper_page(
     }}
     .status-badge.needs-action {{ background: #b30000; color: #fff; }}
     .status-badge.compliant {{ background: #0a7a0a; color: #fff; }}
+    .status-badge.not-started {{ background: #666; color: #fff; }}
     .issue-count {{ font-weight: bold; }}
     .status-figures {{ margin: 0.5rem 0 0; padding-left: 1.2rem; }}
     .todo-list {{ list-style: none; margin: 0; padding: 0; }}
@@ -268,6 +310,7 @@ def render_paper_page(
     }}
     .todo-item.warning {{ background: #fff8ef; border-left: 4px solid #d9822b; }}
     .todo-headline {{ font-weight: bold; margin: 0 0 0.3rem; }}
+    .todo-explain {{ margin: 0 0 0.5rem; color: #555; font-size: 0.9rem; }}
     .todo-empty.complete {{
       padding: 0.75rem 1rem; background: #eefaf0; border-left: 4px solid #0a7a0a;
     }}
@@ -280,6 +323,8 @@ def render_paper_page(
 <body>
   <p><a href="/">&laquo; トップへ戻る</a></p>
   <h1>紙媒体管理</h1>
+  {_render_flash(flash)}
+  {_render_adoption_notice(control_suggestions)}
 
   {_render_status_summary(state, result)}
   {_render_todo_section(result)}
