@@ -89,4 +89,5 @@ def test_step6_unlocks_after_all_control_decisions():
     response = client.get("/setup")
 
     assert "STEP5の管理策判断を完了すると、運用画面へ進めるようになります。" not in response.text
-    assert "採用した管理策の運用画面に進めます。" in response.text
+    assert "初期設定が完了しました。" in response.text
+    assert "トップで準備・運用状況を確認する" in response.text
