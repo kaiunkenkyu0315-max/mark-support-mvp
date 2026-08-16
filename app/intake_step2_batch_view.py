@@ -1,24 +1,49 @@
-"""STEP2 個人情報確認の一括回答UIと、STEP3の段階表示。
+"""初期設定画面の補助UI。
 
-既存の setup ページ描画を土台にしつつ、STEP2を
-「候補ごとの個別ボタン」から「はい／いいえの一括保存」へ置き換える。
-さらにSTEP3は必要項目を削らず、個人情報ごとの詳細を1件ずつ開く表示にして、
-入力負荷ではなく同時に見える情報量を減らす。
+- STEP0: 会社情報を共通データとして入力
+- STEP2: 個人情報候補を「はい／いいえ」で一括回答
+- STEP3: 個人情報台帳を1件ずつ開く段階表示
+
+既存の setup ページ描画を土台にし、MVPの構造を大きく崩さずに
+入力負荷と同時表示情報量を減らす。
 """
 
 from __future__ import annotations
 
 from html import escape
 
-from app.intake_schemas import PersonalInformationCandidateStatus
+from app import company_profile
 from app.intake_demo_state import IntakeDemoState
+from app.intake_schemas import PersonalInformationCandidateStatus
 from app.intake_view import render_setup_page
 
+_STEP1_START = '<section class="step" id="step1">'
 _STEP2_START = '<section class="step" id="step2">'
 _STEP2_END = "</section>"
 
-_STEP3_STYLE = """
+_EXTRA_STYLE = """
 <style>
+  #step0 .company-form {
+    display: block;
+    max-width: 34rem;
+  }
+  #step0 .company-form-field {
+    margin: 0 0 0.8rem;
+  }
+  #step0 .company-form-field label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.15rem;
+  }
+  #step0 .company-form-field input {
+    box-sizing: border-box;
+    width: min(28rem, 95%);
+    padding: 0.3rem 0.4rem;
+  }
+  #step0 .company-profile-status {
+    font-size: 0.9rem;
+    color: #555;
+  }
   #step3 .candidate-item.ledger-collapsible {
     padding: 0;
     overflow: hidden;
@@ -115,6 +140,37 @@ document.addEventListener("DOMContentLoaded", function () {
 """
 
 
+def _render_company_section() -> str:
+    profile = company_profile.get_state()
+    status = "保存済み" if profile.configured else "未保存（現在はデモ初期値）"
+    return f"""
+    <section class="step" id="step0">
+      <h2>STEP 0　会社情報</h2>
+      <p>ここで登録した会社情報を、教育管理など各機能で共通利用します。同じ情報を機能ごとに入力する必要はありません。</p>
+      <p class="company-profile-status">会社情報の状態：{status}</p>
+      <form method="post" action="/setup/company" class="company-form">
+        <div class="company-form-field">
+          <label for="company-name">会社名</label>
+          <input id="company-name" type="text" name="name" value="{escape(profile.name)}" required>
+        </div>
+        <div class="company-form-field">
+          <label for="employee-count">従業者数</label>
+          <input id="employee-count" type="number" name="employee_count" min="1" max="9999"
+                 value="{profile.employee_count}" required>
+          <p class="question-help">役員・従業員など、個人情報保護教育の対象となる人のおおよその人数を入力してください。</p>
+        </div>
+        <div class="company-form-field">
+          <label for="fiscal-year">対象年度</label>
+          <input id="fiscal-year" type="number" name="fiscal_year" min="2000" max="2100"
+                 value="{profile.fiscal_year}" required>
+        </div>
+        <button type="submit">会社情報を保存して次へ</button>
+      </form>
+      <p class="back-to-top"><a href="#setup-top">↑ 初期設定の先頭へ戻る</a></p>
+    </section>
+    """
+
+
 def _checked(candidate_status: PersonalInformationCandidateStatus, expected: str, needs_review: bool) -> str:
     if needs_review:
         return ""
@@ -169,24 +225,31 @@ def render_step2_batch_section(state: IntakeDemoState) -> str:
     """
 
 
-def _add_step3_progressive_disclosure(html: str) -> str:
-    """STEP3の各台帳項目を、ブラウザ側で1件ずつ開く表示にする。"""
+def _inject_step0(html: str) -> str:
+    """工程ナビゲーションとSTEP1の直前に会社情報を追加する。"""
 
+    step0_nav = '<li><a href="#step0">STEP0 会社情報</a></li>'
+    html = html.replace('<ol class="stepper">', f'<ol class="stepper">{step0_nav}', 1)
+    html = html.replace(_STEP1_START, _render_company_section() + "\n" + _STEP1_START, 1)
+    return html
+
+
+def _add_progressive_disclosure(html: str) -> str:
     if "</head>" in html:
-        html = html.replace("</head>", _STEP3_STYLE + "\n</head>", 1)
+        html = html.replace("</head>", _EXTRA_STYLE + "\n</head>", 1)
     if "</body>" in html:
         html = html.replace("</body>", _STEP3_SCRIPT + "\n</body>", 1)
     return html
 
 
 def render_setup_page_with_batch_step2(state: IntakeDemoState) -> str:
-    """既存 setup ページのSTEP2を一括回答化し、STEP3の見通しを改善する。"""
+    """会社情報・STEP2一括回答・STEP3段階表示を統合した初期設定画面。"""
 
-    html = render_setup_page(state)
+    html = _inject_step0(render_setup_page(state))
     start = html.find(_STEP2_START)
     if start != -1:
         end = html.find(_STEP2_END, start)
         if end != -1:
             end += len(_STEP2_END)
             html = html[:start] + render_step2_batch_section(state) + html[end:]
-    return _add_step3_progressive_disclosure(html)
+    return _add_progressive_disclosure(html)
