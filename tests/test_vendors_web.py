@@ -75,6 +75,15 @@ def test_vendor_overview_shows_all_steps_but_only_current_record_form():
     assert "今やること" in response.text
     assert "1件" in response.text
 
+    # <ol>側の番号と工程名の番号を二重表示しない。
+    assert "1. 1. 初回評価" not in response.text
+    assert "2. 2. 契約確認" not in response.text
+    assert "3. 3. 定期評価" not in response.text
+
+    # 上部サマリーは「何の評価か」を明示する。
+    assert "初回評価済み：2社" in response.text
+    assert "初回評価未実施：1社" in response.text
+
     # 現在工程の初回評価フォームだけを表示する。
     assert 'name="assessment_date"' in response.text
     assert 'name="assessor_name"' in response.text
