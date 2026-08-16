@@ -5,7 +5,7 @@ from app import access_control_demo_state, demo_state, intake_demo_state, paper_
 from app.access_control import evaluate_access_control
 from app.access_control_routes import router as access_control_router
 from app.dashboard import TodoItem, build_dashboard_data
-from app.dashboard_plan import enhance_dashboard_with_plan
+from app.dashboard_plan import enhance_dashboard_with_plan, focus_dashboard_todos
 from app.dashboard_view import render_dashboard_page
 from app.dev_routes import router as dev_router
 from app.document_routes import get_current_documents
@@ -40,8 +40,8 @@ def health() -> dict[str, str]:
 def index() -> str:
     """管理者ダッシュボード（トップページ）。
 
-    各既存モジュールの状態・評価結果をDashboardDataへ集約し、既存カードを描画した後、
-    その集約結果から「Pマーク取得の全体計画」を最上位の森として追加する。
+    各既存モジュールの状態・評価結果をDashboardDataへ集約し、トップ表示では
+    管理領域ごとにtodoを1件へ絞ったうえで、Pマーク取得の全体計画を最上位の森として示す。
     """
 
     intake_state = intake_demo_state.get_state()
@@ -88,6 +88,9 @@ def index() -> str:
                 link="/setup#step1",
             )
         ]
+
+    # トップでは同じ管理領域の不足を複数並べず、各領域の詳細画面へ降りる入口にする。
+    focus_dashboard_todos(dashboard_data)
 
     html = render_dashboard_page(APP_NAME, dashboard_data)
     return enhance_dashboard_with_plan(html, dashboard_data)
