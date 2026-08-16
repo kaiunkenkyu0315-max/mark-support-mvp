@@ -75,22 +75,39 @@ def _build_vendors() -> list[Vendor]:
 def _build_assessments(today: date) -> list[VendorAssessment]:
     valid_last = today - timedelta(days=90)
     valid_next = today + timedelta(days=275)
+    initial_date = today - timedelta(days=400)
     return [
         # 給与計算会社：初回評価済み、定期評価も有効。
         VendorAssessment(
             vendor_id=VENDOR_SALARY,
             initial_assessment_completed=True,
+            initial_assessment_date=initial_date,
+            initial_assessment_result=AssessmentResult.PASSED,
+            initial_assessment_by="Pマーク担当者",
+            initial_assessment_method="チェックリスト",
+            initial_assessment_evidence="委託先初回評価票",
             latest_assessment_date=valid_last,
             next_assessment_due=valid_next,
             assessment_result=AssessmentResult.PASSED,
+            periodic_assessment_by="Pマーク担当者",
+            periodic_assessment_method="チェックリスト",
+            periodic_assessment_evidence="委託先定期評価票",
         ),
         # 採用管理クラウド：初回評価済み、定期評価も有効（契約確認のみ未完了）。
         VendorAssessment(
             vendor_id=VENDOR_RECRUITING,
             initial_assessment_completed=True,
+            initial_assessment_date=initial_date,
+            initial_assessment_result=AssessmentResult.PASSED,
+            initial_assessment_by="Pマーク担当者",
+            initial_assessment_method="チェックリスト",
+            initial_assessment_evidence="委託先初回評価票",
             latest_assessment_date=valid_last,
             next_assessment_due=valid_next,
             assessment_result=AssessmentResult.PASSED,
+            periodic_assessment_by="Pマーク担当者",
+            periodic_assessment_method="チェックリスト",
+            periodic_assessment_evidence="委託先定期評価票",
         ),
         # 機密文書廃棄会社：初回評価未実施、定期評価も未設定・未評価。
         VendorAssessment(
@@ -103,11 +120,24 @@ def _build_assessments(today: date) -> list[VendorAssessment]:
     ]
 
 
-def _build_contracts() -> list[VendorContractStatus]:
+def _build_contracts(today: date) -> list[VendorContractStatus]:
+    confirmed_on = today - timedelta(days=390)
     return [
-        VendorContractStatus(vendor_id=VENDOR_SALARY, contract_confirmed=True),
+        VendorContractStatus(
+            vendor_id=VENDOR_SALARY,
+            contract_confirmed=True,
+            confirmed_on=confirmed_on,
+            confirmed_by="Pマーク担当者",
+            contract_reference="業務委託契約書",
+        ),
         VendorContractStatus(vendor_id=VENDOR_RECRUITING, contract_confirmed=False),
-        VendorContractStatus(vendor_id=VENDOR_DISPOSAL, contract_confirmed=True),
+        VendorContractStatus(
+            vendor_id=VENDOR_DISPOSAL,
+            contract_confirmed=True,
+            confirmed_on=confirmed_on,
+            confirmed_by="Pマーク担当者",
+            contract_reference="業務委託契約書",
+        ),
     ]
 
 
@@ -127,7 +157,7 @@ def build_initial_state() -> VendorDemoState:
         vendors=_build_vendors(),
         control=control,
         assessments=_build_assessments(today),
-        contracts=_build_contracts(),
+        contracts=_build_contracts(today),
     )
 
 
@@ -148,36 +178,91 @@ def reset_state() -> VendorDemoState:
     return _state
 
 
-def complete_missing_initial_assessments() -> None:
-    """初回評価が未実施の委託先を、すべて実施済みにする（操作1）。"""
+def _parse_date(value: str | date | None, fallback: date) -> date:
+    if isinstance(value, date):
+        return value
+    text = (value or "").strip()
+    if not text:
+        return fallback
+    return date.fromisoformat(text)
+
+
+def complete_missing_initial_assessments(
+    assessment_date: str | date | None = None,
+    assessor_name: str | None = None,
+    assessment_method: str | None = None,
+    evidence_name: str | None = None,
+    result: AssessmentResult = AssessmentResult.PASSED,
+) -> None:
+    """不足・不適格の初回評価について、説明可能な評価記録を登録する。"""
+
+    recorded_on = _parse_date(assessment_date, date.today())
+    assessor = (assessor_name or "").strip() or "Pマーク担当者"
+    method = (assessment_method or "").strip() or "チェックリスト"
+    evidence = (evidence_name or "").strip() or "委託先初回評価票"
 
     for assessment in _state.assessments:
-        if not assessment.initial_assessment_completed:
+        if (
+            not assessment.initial_assessment_completed
+            or assessment.initial_assessment_result == AssessmentResult.FAILED
+        ):
             assessment.initial_assessment_completed = True
+            assessment.initial_assessment_date = recorded_on
+            assessment.initial_assessment_result = result
+            assessment.initial_assessment_by = assessor
+            assessment.initial_assessment_method = method
+            assessment.initial_assessment_evidence = evidence
 
 
-def confirm_missing_contracts() -> None:
-    """契約確認が未完了の委託先を、すべて完了にする（操作2）。"""
+def confirm_missing_contracts(
+    confirmed_on: str | date | None = None,
+    confirmed_by: str | None = None,
+    contract_reference: str | None = None,
+) -> None:
+    """未確認の契約について、確認日・確認者・資料名を伴う確認記録を登録する。"""
+
+    recorded_on = _parse_date(confirmed_on, date.today())
+    confirmer = (confirmed_by or "").strip() or "Pマーク担当者"
+    reference = (contract_reference or "").strip() or "業務委託契約書"
 
     for contract in _state.contracts:
         if not contract.contract_confirmed:
             contract.contract_confirmed = True
+            contract.confirmed_on = recorded_on
+            contract.confirmed_by = confirmer
+            contract.contract_reference = reference
 
 
-def complete_missing_periodic_assessments() -> None:
-    """定期評価が無効・期限超過の委託先を、すべて評価済み（有効）にする（操作3）。"""
+def complete_missing_periodic_assessments(
+    assessment_date: str | date | None = None,
+    assessor_name: str | None = None,
+    assessment_method: str | None = None,
+    evidence_name: str | None = None,
+    result: AssessmentResult = AssessmentResult.PASSED,
+) -> None:
+    """不足・期限超過の定期評価について、説明可能な評価記録を登録する。"""
 
-    today = date.today()
-    next_due = today + timedelta(days=_NEXT_ASSESSMENT_INTERVAL_DAYS)
+    recorded_on = _parse_date(assessment_date, date.today())
+    next_due = recorded_on + timedelta(days=_NEXT_ASSESSMENT_INTERVAL_DAYS)
+    assessor = (assessor_name or "").strip() or "Pマーク担当者"
+    method = (assessment_method or "").strip() or "チェックリスト"
+    evidence = (evidence_name or "").strip() or "委託先定期評価票"
+
     for assessment in _state.assessments:
         is_invalid = (
             assessment.latest_assessment_date is None
             or assessment.assessment_result != AssessmentResult.PASSED
         )
         is_overdue = (
-            assessment.next_assessment_due is not None and assessment.next_assessment_due < today
+            assessment.next_assessment_due is not None
+            and assessment.next_assessment_due < date.today()
         )
         if is_invalid or is_overdue:
-            assessment.latest_assessment_date = today
-            assessment.next_assessment_due = next_due
-            assessment.assessment_result = AssessmentResult.PASSED
+            assessment.latest_assessment_date = recorded_on
+            assessment.next_assessment_due = (
+                next_due if result == AssessmentResult.PASSED else None
+            )
+            assessment.assessment_result = result
+            assessment.periodic_assessment_by = assessor
+            assessment.periodic_assessment_method = method
+            assessment.periodic_assessment_evidence = evidence
