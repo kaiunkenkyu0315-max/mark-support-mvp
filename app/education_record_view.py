@@ -1,11 +1,11 @@
-"""教育管理画面へ、実施記録・証跡を登録する入力UIを追加する。
+"""教育管理画面へ、全体工程と実施記録入力UIを追加する。
 
-既存の education_view は状態サマリー・不足一覧・詳細表示を担当しているため、
-本モジュールではそのHTMLへ記録入力パネルを差し込み、デモ用ワンクリック操作を
-「事実を登録する」導線へ置き換える。業務判定は行わない。
+利用者が「森→木」の順で理解できるよう、まず教育管理の全4工程と現在地を示し、
+その後に現在必要な1工程だけを入力させる。既存の education_view が持つ状態サマリー・
+問題対象者・詳細表示は活かし、デモ用ワンクリック操作は「事実を登録する」導線へ
+置き換える。業務判定そのものは行わない。
 
-入力負担を抑えるため、現在必要な1工程だけを表示し、保存後に次工程へ進む。
-STEP0や前工程で分かっている値は初期値として再利用する。
+入力負担を抑えるため、STEP0や前工程で分かっている値は初期値として再利用する。
 """
 
 from __future__ import annotations
@@ -41,10 +41,14 @@ def _has_issue(result: EducationEvaluationResult, rule_id: str) -> bool:
     return any(issue.rule_id == rule_id for issue in result.issues)
 
 
+def _issue_by_rule(result: EducationEvaluationResult, rule_id: str):
+    return next((issue for issue in result.issues if issue.rule_id == rule_id), None)
+
+
 def _issue_employee_names(
     state: EducationDemoState, result: EducationEvaluationResult, rule_id: str
 ) -> str:
-    issue = next((issue for issue in result.issues if issue.rule_id == rule_id), None)
+    issue = _issue_by_rule(result, rule_id)
     if issue is None:
         return ""
     employees = {employee.id: employee.name for employee in state.employees}
@@ -63,11 +67,73 @@ def _selected(current: str | None, value: str) -> str:
     return " selected" if current == value else ""
 
 
+def _current_step(result: EducationEvaluationResult) -> int | None:
+    """現在対応すべき教育工程を返す。全工程完了ならNone。"""
+
+    if _has_issue(result, "EDU-008"):
+        return 1
+    if _has_issue(result, "EDU-003"):
+        return 2
+    if _has_issue(result, "EDU-006") or _has_issue(result, "EDU-007"):
+        return 3
+    if _has_issue(result, "EDU-009"):
+        return 4
+    return None
+
+
+def _step_completion(result: EducationEvaluationResult) -> dict[int, bool]:
+    """各工程が事実上完了しているかを、既存の評価結果から導出する。"""
+
+    return {
+        1: not _has_issue(result, "EDU-008"),
+        2: not _has_issue(result, "EDU-003"),
+        3: not (_has_issue(result, "EDU-006") or _has_issue(result, "EDU-007")),
+        4: not _has_issue(result, "EDU-009"),
+    }
+
+
+def _render_progress_overview(result: EducationEvaluationResult) -> str:
+    """教育という領域全体の工程・進捗・現在地を最初に示す。"""
+
+    names = {
+        1: "教育実施・教材記録",
+        2: "受講記録",
+        3: "理解度確認",
+        4: "実施結果の承認",
+    }
+    completion = _step_completion(result)
+    current = _current_step(result)
+    completed_count = sum(completion.values())
+
+    rows: list[str] = []
+    for step in range(1, 5):
+        if completion[step]:
+            status = "完了"
+        elif current == step:
+            status = "対応中"
+        else:
+            status = "未完了"
+        current_marker = " ← 現在" if current == step else ""
+        rows.append(
+            f'<li><strong>{step}. {names[step]}</strong>　{status}{current_marker}</li>'
+        )
+
+    current_text = "全工程完了" if current is None else f"{current}. {names[current]}"
+    return f"""
+    <section class="education-progress" style="border:1px solid #ddd; padding:14px; margin:18px 0;">
+      <h2 style="margin-top:0;">教育の全体工程</h2>
+      <p><strong>全体進捗：{completed_count} / 4 工程 完了</strong></p>
+      <ol style="line-height:1.9;">{''.join(rows)}</ol>
+      <p><strong>現在地：{current_text}</strong></p>
+    </section>
+    """
+
+
 def _render_record_summary(state: EducationDemoState) -> str:
     plan = state.plan
     return f"""
-    <div style="background:#f7f7f7; padding:12px; margin:12px 0 18px 0;">
-      <strong>現在の教育実施記録</strong>
+    <details style="background:#f7f7f7; padding:12px; margin:12px 0 18px 0;">
+      <summary><strong>登録済みの教育実施記録を確認</strong></summary>
       <ul>
         <li>実施日：{_value(plan.execution_date)}</li>
         <li>実施方法：{_value(plan.delivery_method)}</li>
@@ -76,7 +142,44 @@ def _render_record_summary(state: EducationDemoState) -> str:
         <li>理解度確認方法：{_value(plan.comprehension_method)}</li>
         <li>承認：{_value(plan.approved_by)} / {_value(plan.approved_at)}</li>
       </ul>
-    </div>
+    </details>
+    """
+
+
+def _render_focused_todo(state: EducationDemoState, result: EducationEvaluationResult) -> str:
+    """全不足ではなく、現在工程に対応する1件だけを利用者へ示す。"""
+
+    current = _current_step(result)
+    if current is None:
+        return """
+        <section class="focused-todo" style="margin:18px 0;">
+          <h2>今やること</h2>
+          <p style="color:#167c3a;"><strong>対応が必要な項目はありません。教育管理は完了しています。</strong></p>
+        </section>
+        """
+
+    if current == 1:
+        message = "教育実施・教材記録を登録してください。"
+    elif current == 2:
+        issue = _issue_by_rule(result, "EDU-003")
+        count = len(issue.employee_ids) if issue else 0
+        message = f"未受講者{count}名の受講記録を登録してください。"
+    elif current == 3 and _has_issue(result, "EDU-007"):
+        issue = _issue_by_rule(result, "EDU-007")
+        count = len(issue.employee_ids) if issue else 0
+        message = f"理解度確認で要再教育となった{count}名を確認してください。"
+    elif current == 3:
+        issue = _issue_by_rule(result, "EDU-006")
+        count = len(issue.employee_ids) if issue else 0
+        message = f"理解度確認が未登録の{count}名について結果を登録してください。"
+    else:
+        message = "教育実施結果の承認記録を登録してください。"
+
+    return f"""
+    <section class="focused-todo" style="margin:18px 0;">
+      <h2>今やること <span style="font-size:0.8em; font-weight:normal;">1件</span></h2>
+      <p><strong>{escape(message)}</strong></p>
+    </section>
     """
 
 
@@ -162,7 +265,7 @@ def _render_reeducation_notice(state: EducationDemoState, result: EducationEvalu
     names = _issue_employee_names(state, result, "EDU-007")
     return f"""
     <div style="border:1px solid #e1a100; background:#fff9e8; padding:12px; margin:10px 0;">
-      <h3 style="margin-top:0;">4. 再教育が必要です</h3>
+      <h3 style="margin-top:0;">3. 再教育が必要です</h3>
       <p>理解度確認で要再教育となった対象者：{names}</p>
       <p>再教育の実施・再確認記録は次の拡張対象です。現時点ではこの状態のまま承認へは進めません。</p>
     </div>
@@ -202,22 +305,34 @@ def _render_current_action(state: EducationDemoState, result: EducationEvaluatio
 
 
 def render_record_panel(state: EducationDemoState, result: EducationEvaluationResult) -> str:
-    """現在必要な1工程だけを表示する教育実施記録パネルを返す。"""
+    """全体工程→現在地→現在作業の順に表示する教育実施記録パネル。"""
 
     return f"""
     <section id="education-record" style="margin:24px 0;">
-      <h2>教育実施記録</h2>
-      <p>実施した事実と証跡を順番に登録します。完了した項目は再入力する必要はありません。</p>
+      {_render_progress_overview(result)}
       {_render_record_summary(state)}
+      {_render_focused_todo(state, result)}
       {_render_current_action(state, result)}
     </section>
     """
 
 
+def _remove_legacy_todo_section(html: str) -> str:
+    """既存の全不足一覧を除去する。総不足数は状態サマリーに残る。"""
+
+    start = html.find('<section class="todo">')
+    if start == -1:
+        return html
+    end = html.find("</section>", start)
+    if end == -1:
+        return html
+    return html[:start] + html[end + len("</section>") :]
+
+
 def enhance_education_page(
     html: str, state: EducationDemoState, result: EducationEvaluationResult
 ) -> str:
-    """既存教育画面へ記録パネルを追加し、ワンクリック操作を記録入力導線へ置換する。"""
+    """既存教育画面を「森→現在地→木」の順序へ補強する。"""
 
     replacements = {
         _OLD_ACTION_FORMS["complete-trainings"]: '<a href="#education-record">教育実施記録で対応する</a>',
@@ -228,8 +343,16 @@ def enhance_education_page(
     for old, new in replacements.items():
         html = html.replace(old, new)
 
-    marker = '<section class="todo">'
+    html = _remove_legacy_todo_section(html)
     panel = render_record_panel(state, result)
+
+    # 状態サマリーの直後、問題対象者や詳細情報より前に全体工程を置く。
+    marker = '<section class="problem-employees">'
     if marker in html:
         return html.replace(marker, panel + marker, 1)
+
+    details_marker = "<details>"
+    if details_marker in html:
+        return html.replace(details_marker, panel + details_marker, 1)
+
     return html.replace("</h1>", "</h1>" + panel, 1)
