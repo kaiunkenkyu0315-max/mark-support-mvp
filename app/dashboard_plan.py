@@ -3,6 +3,9 @@
 既存のDashboardDataに集約済みの状態だけを使い、取得全体の「森」を示す。
 内部監査・マネジメントレビュー・申請準備はまだMVPで実装していないため、
 未完了とは判定せず「後続工程」として明示する。
+
+またトップの「今やること」は同じ管理領域の不足を複数並べず、領域ごとに
+最初の1件だけへ絞る。詳細な不足は各管理画面の全体工程へ降りて確認する。
 """
 
 from __future__ import annotations
@@ -32,6 +35,23 @@ class AcquisitionPlan:
     implemented_completed: int
     implemented_total: int
     current_text: str
+
+
+def focus_dashboard_todos(data: DashboardData) -> None:
+    """トップ画面用にtodoを管理領域ごと1件へ絞る。
+
+    build_dashboard_data() が保持する詳細な不足情報自体は変更せず、トップ表示直前の
+    DashboardDataだけを整える。初期設定中は元々1件だけなので挙動は変わらない。
+    """
+
+    focused = []
+    seen_areas: set[str] = set()
+    for item in data.todo_items:
+        if item.area in seen_areas:
+            continue
+        seen_areas.add(item.area)
+        focused.append(item)
+    data.todo_items = focused
 
 
 def _first_operation_link(areas: list[OperationalAreaSummary]) -> str:
