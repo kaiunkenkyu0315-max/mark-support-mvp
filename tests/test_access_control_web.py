@@ -73,6 +73,12 @@ def test_access_overview_shows_all_steps_but_only_current_record_form():
     assert 'name="review_date"' not in response.text
     assert 'name="approved_by"' not in response.text
 
+    # 要否は初期値で「必要」にせず、利用者の明示判断を必須にする。
+    assert response.text.count('<option value="" selected disabled>選択してください</option>') == 2
+    assert '<option value="necessary" selected>必要</option>' not in response.text
+    assert '<option value="necessary">必要</option>' in response.text
+    assert '<option value="unnecessary">不要</option>' in response.text
+
     # 旧デモのワンクリック操作は通常画面に出さない。
     assert "アカウント確認を完了する" not in response.text
     assert "不要アカウントを削除する" not in response.text
