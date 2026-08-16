@@ -140,7 +140,7 @@ def _setup_todo_items(
             TodoItem(
                 area="初期設定",
                 message="まだ回答が保存されていません。業務についての質問に回答してください。",
-                link="/setup",
+                link="/setup#step1",
             )
         ]
     if setup_status != SetupStatus.IN_PROGRESS:
@@ -157,7 +157,7 @@ def _setup_todo_items(
             TodoItem(
                 area="個人情報",
                 message="個人情報候補を確認してください。取り扱っている情報は確認し、該当しないものは除外してください。",
-                link="/setup",
+                link="/setup#step2",
             )
         ]
 
@@ -172,7 +172,7 @@ def _setup_todo_items(
             TodoItem(
                 area="個人情報台帳",
                 message="確認済みの個人情報について、取得方法・保管場所・保存期間などの台帳項目を入力してください。",
-                link="/setup",
+                link="/setup#step3",
             )
         ]
 
@@ -186,7 +186,7 @@ def _setup_todo_items(
             TodoItem(
                 area="リスク",
                 message="リスク候補を確認してください。該当するリスクは確認し、該当しないものは除外してください。",
-                link="/setup",
+                link="/setup#step4",
             )
         ]
 
@@ -201,7 +201,7 @@ def _setup_todo_items(
             TodoItem(
                 area="管理策",
                 message="提示された管理策について、採用するか非適用とするかを判断してください。",
-                link="/setup",
+                link="/setup#step5",
             )
         ]
 
