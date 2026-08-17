@@ -62,6 +62,9 @@ def _destination_form(state: ApplicationPreparationState) -> str:
 
     return f"""
     <form method="post" action="/application-prep/destination">
+      <p><label><input type="checkbox" name="eligibility_confirmed" value="yes"{_checked(state.eligibility_confirmed)} required>
+        申請資格・欠格事由・申請担当者等の要件を、選択する審査機関の最新案内で確認した
+      </label></p>
       <p><label>申請先の審査機関<br>
         <input name="examining_body_name" value="{escape(state.examining_body_name or '')}" required
                placeholder="例：JIPDEC または指定審査機関名" style="width:30em;max-width:100%;">
@@ -82,21 +85,30 @@ def _destination_form(state: ApplicationPreparationState) -> str:
         </select>
       </label></p>
       <p class="hint">申請先は業種・本社所在地等に応じて確認し、審査機関が確定してから記録してください。</p>
-      <button type="submit">申請先・方法を記録</button>
+      <button type="submit">申請資格・申請先・方法を記録</button>
     </form>
     """
 
 
 def _forms_form(state: ApplicationPreparationState) -> str:
-    if state.uses_jipdec_forms is True:
+    if state.uses_jipdec_forms is True and state.application_method == "online":
         return f"""
-        <p>JIPDECの新規申請について、現在の申請様式4〜8を個別に確認します。</p>
+        <p>JIPDECのオンライン新規申請について、現在の申請様式4〜8を個別に確認します。</p>
         <form method="post" action="/application-prep/forms">
           <label><input type="checkbox" name="business_overview_prepared" value="yes"{_checked(state.business_overview_prepared)}> 申請様式4：個人情報を取扱う業務の概要</label><br>
           <label><input type="checkbox" name="office_list_prepared" value="yes"{_checked(state.office_list_prepared)}> 申請様式5：すべての事業所の所在地及び業務内容</label><br>
           <label><input type="checkbox" name="pms_document_list_prepared" value="yes"{_checked(state.pms_document_list_prepared)}> 申請様式6：PMS文書の一覧</label><br>
           <label><input type="checkbox" name="education_summary_prepared" value="yes"{_checked(state.education_summary_prepared)}> 申請様式7：教育実施サマリー</label><br>
           <label><input type="checkbox" name="audit_mr_summary_prepared" value="yes"{_checked(state.audit_mr_summary_prepared)}> 申請様式8：内部監査・マネジメントレビュー実施サマリー</label>
+          <p class="hint">提出時には必ずJIPDECが公開する最新様式を再確認してください。</p>
+          <p><button type="submit">申請様式の準備状況を記録</button></p>
+        </form>
+        """
+    if state.uses_jipdec_forms is True:
+        return f"""
+        <p>JIPDECへ郵送・持参する場合は、公開されている「新規申請書類一式」を使用します。</p>
+        <form method="post" action="/application-prep/forms">
+          <label><input type="checkbox" name="jipdec_mail_form_set_prepared" value="yes"{_checked(state.jipdec_mail_form_set_prepared)}> JIPDECの郵送・持参用「新規申請書類一式」を最新様式で準備した</label>
           <p><button type="submit">申請様式の準備状況を記録</button></p>
         </form>
         """
@@ -169,7 +181,7 @@ def render_application_prep_page(
     ]
     progress = sum(1 for value in completed if value)
 
-    step_names = ("申請先・方法", "申請書類・前提確認", "提出データ・アカウント", "最終確認")
+    step_names = ("申請資格・申請先・方法", "申請書類・前提確認", "提出データ・アカウント", "最終確認")
     steps_html = "".join(
         _step_label(index, current, completed[index - 1], name)
         for index, name in enumerate(step_names, start=1)
@@ -223,7 +235,7 @@ def render_application_prep_page(
 <body>
   <p><a href="/">← トップへ戻る</a></p>
   <h1>Pマーク申請準備</h1>
-  <p>申請先の確定から提出前の最終確認までを、既存のPMS記録とつなげて確認します。</p>
+  <p>申請資格・申請先の確認から提出前の最終確認までを、既存のPMS記録とつなげて確認します。</p>
   {flash_html}
 
   <section class="workflow">
