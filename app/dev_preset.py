@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app import (
     access_control_demo_state,
+    annual_cycle_demo_state,
     application_prep_demo_state,
     company_profile,
     demo_state,
@@ -92,6 +93,15 @@ def load_operational_review_preset() -> None:
     paper_demo_state.reset_state()
     pms_review_demo_state.reset_state()
     application_prep_demo_state.reset_state()
+    annual_cycle_demo_state.reset_state()
+
+
+def load_annual_pms_preset() -> None:
+    """年間PMS運用を年度計画から検証できる状態を作る。"""
+
+    load_operational_review_preset()
+    annual_cycle_demo_state.reset_state()
+    pms_review_demo_state.reset_state()
 
 
 def load_pms_review_preset() -> None:
