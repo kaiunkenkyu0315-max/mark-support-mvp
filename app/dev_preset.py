@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app import (
     access_control_demo_state,
+    application_prep_demo_state,
     company_profile,
     demo_state,
     intake_demo_state,
@@ -82,16 +83,15 @@ def load_operational_review_preset() -> None:
         }
     )
 
-    # リスク確定後に提示されたものも含め、現在提示されている管理策をすべて採用する。
     for suggestion in list(intake_demo_state.get_state().control_suggestions):
         intake_demo_state.adopt_control(suggestion.control_id)
 
-    # 運用側は「不足を残したデモ初期状態」に戻し、各管理機能をすぐ確認できるようにする。
     demo_state.reset_state()
     vendor_demo_state.reset_state()
     access_control_demo_state.reset_state()
     paper_demo_state.reset_state()
     pms_review_demo_state.reset_state()
+    application_prep_demo_state.reset_state()
 
 
 def load_pms_review_preset() -> None:
@@ -119,3 +119,35 @@ def load_pms_review_preset() -> None:
     paper_demo_state.approve_status()
 
     pms_review_demo_state.reset_state()
+    application_prep_demo_state.reset_state()
+
+
+def load_application_prep_preset() -> None:
+    """PMSレビューまで完了し、申請先確認からすぐ検証できる状態を作る。"""
+
+    load_pms_review_preset()
+
+    pms_review_demo_state.record_internal_audit(
+        audit_date="2026-08-01",
+        purpose="PMSの適合性・有効性確認",
+        criteria="PMS規程・Pマーク構築運用指針",
+        scope="全社PMS",
+        auditor_name="佐藤 次郎",
+        auditor_independence_confirmed=True,
+        result_summary="重大な不適合なし",
+        nonconformity_count=0,
+        report_date="2026-08-02",
+        reported_to_top_management=True,
+        evidence_name="内部監査報告書",
+    )
+    pms_review_demo_state.record_management_review(
+        review_date="2026-08-05",
+        top_management_name="山田 太郎",
+        input_summary="内部監査、リスク、教育、委託先、アクセス権限、紙媒体の運用状況を確認",
+        decision_summary="現行PMSを維持し、継続的に改善する",
+        changes_needed=False,
+        improvement_actions="",
+        evidence_name="マネジメントレビュー議事録",
+    )
+
+    application_prep_demo_state.reset_state()
