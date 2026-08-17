@@ -127,7 +127,7 @@ def _next_existing_operation(context: AnnualPmsContext) -> str:
           <p><a href="{escape(current.link)}">次の工程へ進む</a></p>
         </section>
         """
-    return """
+    return ""
 
 
 def render_annual_pms_page(context: AnnualPmsContext, *, flash: str | None = None) -> str:
@@ -148,29 +148,33 @@ def render_annual_pms_page(context: AnnualPmsContext, *, flash: str | None = Non
     flash_html = f'<p class="flash">{escape(flash)}</p>' if flash else ""
     plan_html = render_plan(plan, css_class="annual-pms-plan")
 
-    return f"""<!DOCTYPE html>
+    return (
+        """<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <title>年間PMS運用</title>
   <style>
-    body {{ font-family:sans-serif; margin:2rem; line-height:1.6; max-width:1000px; }}
-    .action-card {{ border:1px solid #ccc; padding:16px; margin:20px 0; border-radius:4px; }}
-    .change-box {{ background:#f7f7f7; padding:12px; }}
-    .issue {{ background:#fff8ef; border-left:4px solid #d9822b; padding:10px; }}
-    .flash {{ background:#eef6ff; border-left:4px solid #3973ac; padding:10px; }}
-    .complete-box {{ background:#eefaf0; }}
-    textarea {{ max-width:100%; }}
+    body { font-family:sans-serif; margin:2rem; line-height:1.6; max-width:1000px; }
+    .action-card { border:1px solid #ccc; padding:16px; margin:20px 0; border-radius:4px; }
+    .change-box { background:#f7f7f7; padding:12px; }
+    .issue { background:#fff8ef; border-left:4px solid #d9822b; padding:10px; }
+    .flash { background:#eef6ff; border-left:4px solid #3973ac; padding:10px; }
+    .complete-box { background:#eefaf0; }
+    textarea { max-width:100%; }
   </style>
 </head>
 <body>
   <h1>年間PMS運用</h1>
   <p><a href="/">トップへ戻る</a></p>
   <p>取得後のPMSを、年度開始からマネジメントレビューまで同じ計画表で運用します。</p>
-  {plan_html}
-  {flash_html}
-  {issue_html}
-  {action}
+"""
+        + plan_html
+        + flash_html
+        + issue_html
+        + action
+        + """
 </body>
 </html>
 """
+    )
