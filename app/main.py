@@ -143,7 +143,7 @@ def index() -> str:
             )
         )
 
-    if pms_review_result.complete and not application_result.complete:
+    if application_prerequisites.complete and not application_result.complete:
         current_issue = next(iter(application_result.issues), None)
         dashboard_data.todo_items.append(
             TodoItem(
@@ -151,7 +151,7 @@ def index() -> str:
                 message=(
                     current_issue.message
                     if current_issue
-                    else "申請先・申請書類・提出データを確認してください。"
+                    else "申請資格・申請先・申請書類・提出データを確認してください。"
                 ),
                 link="/application-prep",
             )
