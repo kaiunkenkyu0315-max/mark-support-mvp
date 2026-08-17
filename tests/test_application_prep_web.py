@@ -35,7 +35,7 @@ def teardown_function():
     _reset_all()
 
 
-def test_application_prep_starts_with_destination_only():
+def test_application_prep_starts_with_eligibility_and_destination_only():
     load_application_prep_preset()
 
     response = client.get("/application-prep")
@@ -43,11 +43,29 @@ def test_application_prep_starts_with_destination_only():
     assert response.status_code == 200
     assert "申請準備の全体工程" in response.text
     assert "全体進捗：0 / 4 工程 完了" in response.text
-    assert "現在地：1. 申請先・方法" in response.text
+    assert "現在地：1. 申請資格・申請先・方法" in response.text
+    assert "申請資格・欠格事由・申請担当者等の要件" in response.text
     assert 'action="/application-prep/destination"' in response.text
     assert 'action="/application-prep/forms"' not in response.text
     assert 'action="/application-prep/submission-data"' not in response.text
     assert 'action="/application-prep/final-review"' not in response.text
+
+
+def test_destination_cannot_complete_without_eligibility_confirmation():
+    load_application_prep_preset()
+
+    response = client.post(
+        "/application-prep/destination",
+        data={
+            "examining_body_name": "JIPDEC",
+            "application_method": "online",
+            "uses_jipdec_forms": "yes",
+        },
+        follow_redirects=True,
+    )
+
+    assert "申請資格・欠格事由・担当者要件を確認してください" in response.text
+    assert "現在地：1. 申請資格・申請先・方法" in response.text
 
 
 def test_jipdec_online_flow_progresses_through_all_four_steps():
@@ -56,6 +74,7 @@ def test_jipdec_online_flow_progresses_through_all_four_steps():
     response = client.post(
         "/application-prep/destination",
         data={
+            "eligibility_confirmed": "yes",
             "examining_body_name": "JIPDEC",
             "application_method": "online",
             "uses_jipdec_forms": "yes",
@@ -108,11 +127,37 @@ def test_jipdec_online_flow_progresses_through_all_four_steps():
     assert "付与適格性を保証するものではありません" in response.text
 
 
+def test_jipdec_mail_flow_uses_full_mail_application_set_and_no_online_account():
+    load_application_prep_preset()
+    client.post(
+        "/application-prep/destination",
+        data={
+            "eligibility_confirmed": "yes",
+            "examining_body_name": "JIPDEC",
+            "application_method": "mail",
+            "uses_jipdec_forms": "yes",
+        },
+    )
+
+    response = client.get("/application-prep")
+    assert "JIPDECの郵送・持参用「新規申請書類一式」" in response.text
+    assert "申請様式4：" not in response.text
+
+    response = client.post(
+        "/application-prep/forms",
+        data={"jipdec_mail_form_set_prepared": "yes"},
+        follow_redirects=True,
+    )
+    assert "現在地：3. 提出データ・アカウント" in response.text
+    assert "オンライン申請に使用するアカウント" not in response.text
+
+
 def test_non_jipdec_mail_flow_uses_examining_body_form_set_and_no_online_account():
     load_application_prep_preset()
     client.post(
         "/application-prep/destination",
         data={
+            "eligibility_confirmed": "yes",
             "examining_body_name": "指定審査機関A",
             "application_method": "mail",
             "uses_jipdec_forms": "no",
