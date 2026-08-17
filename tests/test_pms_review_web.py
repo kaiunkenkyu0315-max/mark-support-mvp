@@ -51,6 +51,45 @@ def test_pms_review_page_starts_with_audit_only():
     assert "Pマーク構築・運用指針 JIS Q 15001:2023準拠 ver1.0" in response.text
 
 
+def test_direct_post_cannot_bypass_audit_and_corrective_sequence():
+    _load_review_ready_state()
+
+    corrective_response = client.post(
+        "/pms-review/corrective-action",
+        data={
+            "finding_summary": "先行登録テスト",
+            "immediate_action": "修正",
+            "root_cause": "原因",
+            "corrective_action": "是正",
+            "implemented_on": "2026-08-01",
+            "effectiveness_result": "effective",
+            "effectiveness_checked_on": "2026-08-02",
+            "approved_by": "山田 太郎",
+            "approved_at": "2026-08-02",
+            "evidence_name": "是正処置記録",
+        },
+        follow_redirects=True,
+    )
+    assert "先に内部監査記録を完成させてください" in corrective_response.text
+    assert pms_review_demo_state.get_state().corrective_action.finding_summary is None
+
+    review_response = client.post(
+        "/pms-review/management-review",
+        data={
+            "review_date": "2026-08-03",
+            "top_management_name": "山田 太郎",
+            "input_summary": "先行登録テスト",
+            "decision_summary": "決定",
+            "changes_needed": "no",
+            "improvement_actions": "",
+            "evidence_name": "マネジメントレビュー議事録",
+        },
+        follow_redirects=True,
+    )
+    assert "先に内部監査記録を完成させてください" in review_response.text
+    assert pms_review_demo_state.get_state().management_review.review_date is None
+
+
 def test_audit_without_findings_skips_corrective_form_and_opens_management_review():
     _load_review_ready_state()
     response = client.post(
