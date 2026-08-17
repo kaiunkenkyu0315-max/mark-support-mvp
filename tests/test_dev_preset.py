@@ -128,7 +128,7 @@ def test_application_prep_preset_completes_pms_review_and_opens_destination_step
 
     assert response.status_code == 200
     assert "Pマーク申請準備" in response.text
-    assert "現在地：1. 申請先・方法" in response.text
+    assert "現在地：1. 申請資格・申請先・方法" in response.text
     assert evaluate_pms_review(pms_review_demo_state.get_state()).complete is True
 
     result = evaluate_application_prep(
