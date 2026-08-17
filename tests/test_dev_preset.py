@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from app import (
     access_control_demo_state,
+    application_prep_demo_state,
     company_profile,
     demo_state,
     intake_demo_state,
@@ -11,10 +12,13 @@ from app import (
     vendor_demo_state,
 )
 from app.access_control import evaluate_access_control
+from app.application_prep import evaluate_application_prep
+from app.application_prep_context import build_application_prerequisites
 from app.education import evaluate_training
 from app.intake_schemas import ControlDecisionStatus, SetupStatus
 from app.main import app
 from app.paper import evaluate_paper_management
+from app.pms_review import evaluate_pms_review
 from app.setup_progress import get_effective_setup_status
 from app.vendors import evaluate_vendors
 
@@ -30,6 +34,7 @@ def reset_all_demo_states():
     access_control_demo_state.reset_state()
     paper_demo_state.reset_state()
     pms_review_demo_state.reset_state()
+    application_prep_demo_state.reset_state()
     yield
     company_profile.reset_state()
     intake_demo_state.reset_state()
@@ -38,6 +43,7 @@ def reset_all_demo_states():
     access_control_demo_state.reset_state()
     paper_demo_state.reset_state()
     pms_review_demo_state.reset_state()
+    application_prep_demo_state.reset_state()
 
 
 def test_dashboard_shows_development_preset_shortcuts():
@@ -49,6 +55,8 @@ def test_dashboard_shows_development_preset_shortcuts():
     assert 'action="/dev/preset/operations"' in response.text
     assert "PMSレビュー検証用プリセットをセット" in response.text
     assert 'action="/dev/preset/pms-review"' in response.text
+    assert "申請準備検証用プリセットをセット" in response.text
+    assert 'action="/dev/preset/application-prep"' in response.text
 
 
 def test_operational_review_preset_completes_setup_and_adopts_main_controls():
@@ -113,3 +121,19 @@ def test_pms_review_preset_completes_four_operations_and_opens_internal_audit():
 
     paper_state = paper_demo_state.get_state()
     assert not evaluate_paper_management(paper_state.control, paper_state.status).issues
+
+
+def test_application_prep_preset_completes_pms_review_and_opens_destination_step():
+    response = client.post("/dev/preset/application-prep", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "Pマーク申請準備" in response.text
+    assert "現在地：1. 申請先・方法" in response.text
+    assert evaluate_pms_review(pms_review_demo_state.get_state()).complete is True
+
+    result = evaluate_application_prep(
+        application_prep_demo_state.get_state(),
+        build_application_prerequisites(),
+    )
+    assert result.prerequisites_complete is True
+    assert result.destination_complete is False
