@@ -12,6 +12,7 @@ from app import (
 )
 from app.access_control import evaluate_access_control
 from app.access_control_routes import router as access_control_router
+from app.annual_pms_routes import router as annual_pms_router
 from app.application_prep import evaluate_application_prep
 from app.application_prep_context import build_application_prerequisites
 from app.application_prep_routes import router as application_prep_router
@@ -43,6 +44,7 @@ app.include_router(access_control_router)
 app.include_router(paper_router)
 app.include_router(pms_review_router)
 app.include_router(application_prep_router)
+app.include_router(annual_pms_router)
 app.include_router(document_router)
 app.include_router(dev_router)
 
