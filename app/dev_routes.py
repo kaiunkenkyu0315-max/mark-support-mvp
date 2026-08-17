@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 from app.dev_preset import (
+    load_annual_pms_preset,
     load_application_prep_preset,
     load_operational_review_preset,
     load_pms_review_preset,
@@ -16,6 +17,12 @@ router = APIRouter(prefix="/dev", tags=["development"])
 def load_operations_preset() -> RedirectResponse:
     load_operational_review_preset()
     return RedirectResponse(url="/", status_code=303)
+
+
+@router.post("/preset/annual-pms")
+def load_annual_preset() -> RedirectResponse:
+    load_annual_pms_preset()
+    return RedirectResponse(url="/annual-pms", status_code=303)
 
 
 @router.post("/preset/pms-review")
