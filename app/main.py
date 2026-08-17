@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 
 from app import (
     access_control_demo_state,
+    application_prep_demo_state,
     demo_state,
     intake_demo_state,
     paper_demo_state,
@@ -11,8 +12,12 @@ from app import (
 )
 from app.access_control import evaluate_access_control
 from app.access_control_routes import router as access_control_router
+from app.application_prep import evaluate_application_prep
+from app.application_prep_context import build_application_prerequisites
+from app.application_prep_routes import router as application_prep_router
 from app.dashboard import TodoItem, build_dashboard_data
-from app.dashboard_plan import enhance_dashboard_with_plan, focus_dashboard_todos
+from app.dashboard_application_plan import enhance_dashboard_with_application_plan
+from app.dashboard_plan import focus_dashboard_todos
 from app.dashboard_view import render_dashboard_page
 from app.dev_routes import router as dev_router
 from app.document_routes import get_current_documents
@@ -37,6 +42,7 @@ app.include_router(vendor_router)
 app.include_router(access_control_router)
 app.include_router(paper_router)
 app.include_router(pms_review_router)
+app.include_router(application_prep_router)
 app.include_router(document_router)
 app.include_router(dev_router)
 
@@ -55,17 +61,25 @@ def index() -> str:
 
     education_state = demo_state.get_state()
     education_result = evaluate_training(
-        education_state.employees, education_state.control, education_state.plan, education_state.records
+        education_state.employees,
+        education_state.control,
+        education_state.plan,
+        education_state.records,
     )
 
     vendor_state = vendor_demo_state.get_state()
     vendor_result = evaluate_vendors(
-        vendor_state.vendors, vendor_state.control, vendor_state.assessments, vendor_state.contracts
+        vendor_state.vendors,
+        vendor_state.control,
+        vendor_state.assessments,
+        vendor_state.contracts,
     )
 
     access_control_state = access_control_demo_state.get_state()
     access_control_result = evaluate_access_control(
-        access_control_state.accounts, access_control_state.control, access_control_state.cycle
+        access_control_state.accounts,
+        access_control_state.control,
+        access_control_state.cycle,
     )
 
     paper_state = paper_demo_state.get_state()
@@ -86,6 +100,12 @@ def index() -> str:
         paper_result=paper_result,
     )
 
+    application_prerequisites = build_application_prerequisites()
+    application_result = evaluate_application_prep(
+        application_prep_demo_state.get_state(),
+        application_prerequisites,
+    )
+
     if setup_status.value == "in_progress" and not intake_state.answers_submitted:
         dashboard_data.todo_items = [
             TodoItem(
@@ -95,7 +115,6 @@ def index() -> str:
             )
         ]
 
-    # 採用済み管理策の運用と文書準備が整った後は、PMS評価・改善を次工程として案内する。
     adopted_areas = [area for area in dashboard_data.operational_areas if area.adopted]
     operations_complete = bool(adopted_areas) and all(
         area.css_class == "compliant" for area in adopted_areas
@@ -106,18 +125,44 @@ def index() -> str:
         and operations_complete
         and not pms_review_result.complete
     ):
-        current_issue = next((issue for issue in pms_review_result.issues if issue.rule_id != "MR-001"), None)
+        current_issue = next(
+            (issue for issue in pms_review_result.issues if issue.rule_id != "MR-001"),
+            None,
+        )
         if current_issue is None:
             current_issue = next(iter(pms_review_result.issues), None)
         dashboard_data.todo_items.append(
             TodoItem(
                 area="PMS評価・改善",
-                message=current_issue.message if current_issue else "内部監査・是正・マネジメントレビューを確認してください。",
+                message=(
+                    current_issue.message
+                    if current_issue
+                    else "内部監査・是正・マネジメントレビューを確認してください。"
+                ),
                 link="/pms-review",
+            )
+        )
+
+    if pms_review_result.complete and not application_result.complete:
+        current_issue = next(iter(application_result.issues), None)
+        dashboard_data.todo_items.append(
+            TodoItem(
+                area="申請準備",
+                message=(
+                    current_issue.message
+                    if current_issue
+                    else "申請先・申請書類・提出データを確認してください。"
+                ),
+                link="/application-prep",
             )
         )
 
     focus_dashboard_todos(dashboard_data)
 
     html = render_dashboard_page(APP_NAME, dashboard_data)
-    return enhance_dashboard_with_plan(html, dashboard_data, pms_review_result)
+    return enhance_dashboard_with_application_plan(
+        html,
+        dashboard_data,
+        pms_review_result,
+        application_result,
+    )
