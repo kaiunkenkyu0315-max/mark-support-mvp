@@ -92,7 +92,7 @@ def evaluate_application_prep(
         issues.append(
             ApplicationPrepIssue(
                 "APP-008",
-                "提出するPMS文書一式の電子データを準備してください。",
+                "申請方法に応じて、提出するPMS文書一式を準備してください。",
             )
         )
     if state.application_method == "online" and state.online_account_ready is not True:
