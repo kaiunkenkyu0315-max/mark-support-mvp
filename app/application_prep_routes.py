@@ -30,21 +30,27 @@ def application_prep_page(flash: str | None = None) -> str:
 
 @router.post("/destination")
 def save_destination(
+    eligibility_confirmed: str | None = Form(None),
     examining_body_name: str = Form(...),
     application_method: str = Form(...),
     uses_jipdec_forms: str = Form(...),
 ) -> RedirectResponse:
+    if eligibility_confirmed != "yes":
+        return _redirect("申請資格・欠格事由・担当者要件を確認してください。")
     if application_method not in {"online", "mail", "other"}:
         return _redirect("申請方法を選択してください。")
     if uses_jipdec_forms not in {"yes", "no"}:
         return _redirect("使用する申請様式体系を選択してください。")
+    if uses_jipdec_forms == "yes" and application_method == "other":
+        return _redirect("JIPDECの申請方法はオンラインまたは郵送・持参から選択してください。")
 
     application_prep_demo_state.record_destination(
+        eligibility_confirmed=True,
         examining_body_name=examining_body_name,
         application_method=application_method,
         uses_jipdec_forms=uses_jipdec_forms == "yes",
     )
-    return _redirect("申請先・申請方法を記録しました。")
+    return _redirect("申請資格・申請先・申請方法を記録しました。")
 
 
 @router.post("/forms")
@@ -54,6 +60,7 @@ def save_forms(
     pms_document_list_prepared: str | None = Form(None),
     education_summary_prepared: str | None = Form(None),
     audit_mr_summary_prepared: str | None = Form(None),
+    jipdec_mail_form_set_prepared: str | None = Form(None),
     other_form_set_prepared: str | None = Form(None),
 ) -> RedirectResponse:
     before = evaluate_application_prep(
@@ -61,7 +68,7 @@ def save_forms(
         build_application_prerequisites(),
     )
     if not before.destination_complete:
-        return _redirect("先に申請先・申請方法を確定してください。")
+        return _redirect("先に申請資格・申請先・申請方法を確定してください。")
 
     application_prep_demo_state.record_forms(
         business_overview_prepared=business_overview_prepared == "yes",
@@ -69,6 +76,7 @@ def save_forms(
         pms_document_list_prepared=pms_document_list_prepared == "yes",
         education_summary_prepared=education_summary_prepared == "yes",
         audit_mr_summary_prepared=audit_mr_summary_prepared == "yes",
+        jipdec_mail_form_set_prepared=jipdec_mail_form_set_prepared == "yes",
         other_form_set_prepared=other_form_set_prepared == "yes",
     )
     return _redirect("申請様式の準備状況を記録しました。")
