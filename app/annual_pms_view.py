@@ -146,6 +146,7 @@ def render_annual_pms_page(context: AnnualPmsContext, *, flash: str | None = Non
     issue = next(iter(context.annual_cycle_result.issues), None)
     issue_html = f'<p class="issue">{escape(issue.message)}</p>' if issue else ""
     flash_html = f'<p class="flash">{escape(flash)}</p>' if flash else ""
+    plan_html = render_plan(plan, css_class="annual-pms-plan")
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -166,7 +167,7 @@ def render_annual_pms_page(context: AnnualPmsContext, *, flash: str | None = Non
   <h1>年間PMS運用</h1>
   <p><a href="/">トップへ戻る</a></p>
   <p>取得後のPMSを、年度開始からマネジメントレビューまで同じ計画表で運用します。</p>
-  {render_plan(plan, css_class="annual-pms-plan")}
+  {plan_html}
   {flash_html}
   {issue_html}
   {action}
