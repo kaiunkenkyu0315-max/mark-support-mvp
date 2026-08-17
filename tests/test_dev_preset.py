@@ -53,6 +53,8 @@ def test_dashboard_shows_development_preset_shortcuts():
     assert "開発用ショートカット" in response.text
     assert "運用検証用プリセットをセット" in response.text
     assert 'action="/dev/preset/operations"' in response.text
+    assert "年間PMS検証用プリセットをセット" in response.text
+    assert 'action="/dev/preset/annual-pms"' in response.text
     assert "PMSレビュー検証用プリセットをセット" in response.text
     assert 'action="/dev/preset/pms-review"' in response.text
     assert "申請準備検証用プリセットをセット" in response.text
