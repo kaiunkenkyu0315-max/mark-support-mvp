@@ -123,6 +123,7 @@ def test_acquisition_plan_marks_application_prep_complete_but_keeps_external_rev
     _reset_all()
     load_application_prep_preset()
     application_prep_demo_state.record_destination(
+        eligibility_confirmed=True,
         examining_body_name="JIPDEC",
         application_method="online",
         uses_jipdec_forms=True,
