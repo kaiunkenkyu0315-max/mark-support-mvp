@@ -1,14 +1,14 @@
 """取得後の年間PMS運用計画を表現する計画ビルダー。
 
-教育・委託先・アクセス権限・紙媒体に加え、内部監査・必要な是正処置・
-マネジメントレビューも同じ年間サイクルへ接続する。年度計画や台帳・リスクの
-定期見直しは専用記録機能がまだないため、引き続き後続実装として示す。
+年度計画・台帳/リスク見直し・各管理策運用・内部監査・是正・
+マネジメントレビューを同じ年間サイクルへ接続する。
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
 
+from app.annual_cycle_schemas import AnnualCycleEvaluationResult
 from app.dashboard import DashboardData, OperationalAreaSummary
 from app.intake_schemas import SetupStatus
 from app.plan_models import Plan, PlanStep
@@ -27,6 +27,47 @@ def _area_by_id(data: DashboardData, control_id: str) -> OperationalAreaSummary 
     return next((area for area in data.operational_areas if area.control_id == control_id), None)
 
 
+def _annual_start_steps(
+    result: AnnualCycleEvaluationResult | None,
+) -> tuple[list[PlanStep], list[tuple[int, bool]], bool]:
+    """年度開始2工程と、後続運用へ進めるかを返す。
+
+    result=None は既存の取得支援・旧テスト互換用で、従来どおり後続実装として扱う。
+    """
+
+    if result is None:
+        return (
+            [
+                PlanStep(1, "年度運用計画・体制確認", "年度の運用方針、担当体制、実施予定を確認します。", "後続実装", "future", implemented=False),
+                PlanStep(2, "個人情報台帳・リスク見直し", "業務変更を踏まえて個人情報台帳、リスク、管理策を定期的に見直します。", "後続実装", "future", implemented=False),
+            ],
+            [],
+            True,
+        )
+
+    plan_complete = result.plan_complete
+    review_complete = result.inventory_risk_review_complete
+    steps = [
+        PlanStep(
+            1,
+            "年度運用計画・体制確認",
+            "対象年度、PMS担当体制、年度目標、主要な実施予定、承認・証跡を記録します。",
+            "完了" if plan_complete else "対応中",
+            "complete" if plan_complete else "current",
+            "/annual-pms",
+        ),
+        PlanStep(
+            2,
+            "個人情報台帳・リスク見直し",
+            "業務変更を確認し、個人情報台帳・リスク・管理策の変更有無と必要な反映結果を記録します。",
+            "完了" if review_complete else ("対応中" if plan_complete else "年度計画後"),
+            "complete" if review_complete else ("current" if plan_complete else "pending"),
+            "/annual-pms",
+        ),
+    ]
+    return steps, [(1, plan_complete), (2, review_complete)], review_complete
+
+
 def _operation_step(
     data: DashboardData,
     *,
@@ -34,6 +75,7 @@ def _operation_step(
     number: int,
     name: str,
     description: str,
+    annual_prerequisites_complete: bool = True,
 ) -> tuple[PlanStep, bool, bool]:
     area = _area_by_id(data, control_id)
     if data.setup_status != SetupStatus.COMPLETE:
@@ -41,6 +83,9 @@ def _operation_step(
     if area is None or not area.adopted:
         label = area.label if area is not None else "対象外"
         return PlanStep(number, name, description, label, "not-applicable", area.link if area else None), False, False
+    if not annual_prerequisites_complete:
+        return PlanStep(number, name, description, "年次見直し後", "pending", "/annual-pms"), True, False
+
     complete = area.css_class == "compliant"
     return (
         PlanStep(number, name, description, "完了" if complete else "対応中", "complete" if complete else "current", area.link),
@@ -51,6 +96,8 @@ def _operation_step(
 
 def _review_steps(
     review_result: PmsReviewEvaluationResult | None,
+    *,
+    operations_complete: bool = True,
 ) -> tuple[list[PlanStep], list[tuple[int, bool]]]:
     if review_result is None:
         return (
@@ -60,6 +107,16 @@ def _review_steps(
                 PlanStep(9, "マネジメントレビュー・次年度計画", "経営層が運用結果を確認し、改善事項と次年度の計画につなげます。", "後続実装", "future", implemented=False),
             ],
             [],
+        )
+
+    if not operations_complete:
+        return (
+            [
+                PlanStep(7, "内部監査", "PMSが定めたとおり運用されているかを内部監査で確認します。", "運用完了後", "pending", "/annual-pms"),
+                PlanStep(8, "是正・改善", "監査や運用で見つかった不足について、是正と有効性確認を行います。", "監査結果待ち", "pending", "/annual-pms"),
+                PlanStep(9, "マネジメントレビュー・次年度計画", "経営層が運用結果を確認し、改善事項と次年度の計画につなげます。", "監査・是正後", "pending", "/annual-pms"),
+            ],
+            [(7, False), (8, False), (9, False)],
         )
 
     audit_complete = review_result.audit_complete
@@ -113,13 +170,11 @@ def _review_steps(
 def build_annual_pms_plan(
     data: DashboardData,
     review_result: PmsReviewEvaluationResult | None = None,
+    annual_cycle_result: AnnualCycleEvaluationResult | None = None,
 ) -> Plan:
-    steps: list[PlanStep] = [
-        PlanStep(1, "年度運用計画・体制確認", "年度の運用方針、担当体制、実施予定を確認します。", "後続実装", "future", implemented=False),
-        PlanStep(2, "個人情報台帳・リスク見直し", "業務変更を踏まえて個人情報台帳、リスク、管理策を定期的に見直します。", "後続実装", "future", implemented=False),
-    ]
+    steps, tracked_steps, annual_prerequisites_complete = _annual_start_steps(annual_cycle_result)
 
-    tracked_steps: list[tuple[int, bool]] = []
+    operation_tracking: list[tuple[int, bool]] = []
     for control_id, number, name, description in _OPERATION_STEP_DEFINITIONS:
         step, tracked, complete = _operation_step(
             data,
@@ -127,12 +182,20 @@ def build_annual_pms_plan(
             number=number,
             name=name,
             description=description,
+            annual_prerequisites_complete=annual_prerequisites_complete,
         )
         steps.append(step)
         if tracked:
-            tracked_steps.append((number, complete))
+            operation_tracking.append((number, complete))
+    tracked_steps.extend(operation_tracking)
 
-    review_steps, review_tracking = _review_steps(review_result)
+    operations_complete = annual_prerequisites_complete and all(
+        complete for _, complete in operation_tracking
+    )
+    review_steps, review_tracking = _review_steps(
+        review_result,
+        operations_complete=operations_complete,
+    )
     steps.extend(review_steps)
     tracked_steps.extend(review_tracking)
 
@@ -144,8 +207,8 @@ def build_annual_pms_plan(
     elif tracked_steps:
         current_text = (
             "現MVP運用範囲完了（次の後続工程：7. 内部監査）"
-            if review_result is None
-            else "現MVP運用範囲完了"
+            if review_result is None and annual_cycle_result is None
+            else "年間PMS運用サイクル完了"
         )
     elif data.setup_status != SetupStatus.COMPLETE:
         current_text = "初期設定完了後に年間運用対象を確定"
@@ -154,11 +217,11 @@ def build_annual_pms_plan(
 
     return Plan(
         title="年間PMS運用計画",
-        description="取得後も年間の全体像から現在地を確認し、運用記録・内部監査・是正・マネジメントレビューへ順に降りる構造を使います。",
+        description="年間の全体像から現在地を確認し、年度計画、定期見直し、各管理策の運用、内部監査、是正、マネジメントレビューへ順に進みます。",
         steps=steps,
         completed_count=sum(1 for _, complete in tracked_steps if complete),
         tracked_total=len(tracked_steps),
         current_text=current_text,
-        progress_label="現MVP運用範囲進捗",
-        footer_note="年間の実施月、期限、担当者、証跡へのリンクは、今後この共通計画モデルへ追加できます。",
+        progress_label="年間サイクル進捗" if annual_cycle_result is not None else "現MVP運用範囲進捗",
+        footer_note="個人情報台帳・リスク・管理策の正本は既存の初期設定側に保持し、年間側では見直し事実と反映記録を保持します。",
     )
