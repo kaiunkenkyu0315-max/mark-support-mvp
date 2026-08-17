@@ -13,6 +13,7 @@ def _ready_prerequisites() -> ApplicationPrerequisites:
 
 def test_jipdec_online_application_requires_forms_4_to_8_and_online_account():
     state = ApplicationPreparationState(
+        eligibility_confirmed=True,
         examining_body_name="JIPDEC",
         application_method="online",
         uses_jipdec_forms=True,
@@ -33,8 +34,30 @@ def test_jipdec_online_application_requires_forms_4_to_8_and_online_account():
     assert {issue.rule_id for issue in result.issues} >= {"APP-006", "APP-009"}
 
 
+def test_jipdec_mail_application_requires_mail_form_set_not_online_forms_4_to_8():
+    state = ApplicationPreparationState(
+        eligibility_confirmed=True,
+        examining_body_name="JIPDEC",
+        application_method="mail",
+        uses_jipdec_forms=True,
+        business_overview_prepared=True,
+        office_list_prepared=True,
+        pms_document_list_prepared=True,
+        education_summary_prepared=True,
+        audit_mr_summary_prepared=True,
+        jipdec_mail_form_set_prepared=False,
+        pms_document_bundle_prepared=True,
+    )
+
+    result = evaluate_application_prep(state, _ready_prerequisites())
+
+    assert result.forms_complete is False
+    assert "APP-006" in {issue.rule_id for issue in result.issues}
+
+
 def test_non_jipdec_mail_application_uses_other_form_set_and_does_not_require_online_account():
     state = ApplicationPreparationState(
+        eligibility_confirmed=True,
         examining_body_name="指定審査機関A",
         application_method="mail",
         uses_jipdec_forms=False,
@@ -56,14 +79,11 @@ def test_non_jipdec_mail_application_uses_other_form_set_and_does_not_require_on
 
 def test_application_cannot_be_complete_when_existing_pms_prerequisites_are_missing():
     state = ApplicationPreparationState(
+        eligibility_confirmed=True,
         examining_body_name="JIPDEC",
         application_method="mail",
         uses_jipdec_forms=True,
-        business_overview_prepared=True,
-        office_list_prepared=True,
-        pms_document_list_prepared=True,
-        education_summary_prepared=True,
-        audit_mr_summary_prepared=True,
+        jipdec_mail_form_set_prepared=True,
         pms_document_bundle_prepared=True,
         final_reviewed_by="担当者",
         final_reviewed_at="2026-08-10",
