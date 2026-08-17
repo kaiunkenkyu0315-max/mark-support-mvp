@@ -142,6 +142,16 @@ def _final_review_form(state: ApplicationPreparationState) -> str:
     """
 
 
+def _current_issue_ids(current: int) -> set[str]:
+    return {
+        1: {"APP-001"},
+        2: {"APP-002", "APP-003", "APP-004", "APP-005", "APP-006", "APP-007"},
+        3: {"APP-008", "APP-009"},
+        4: {"APP-010"},
+        5: set(),
+    }[current]
+
+
 def render_application_prep_page(
     state: ApplicationPreparationState,
     prerequisites: ApplicationPrerequisites,
@@ -187,7 +197,9 @@ def render_application_prep_page(
         </div>
         """
 
-    issue_items = "".join(f"<li>{escape(issue.message)}</li>" for issue in result.issues)
+    visible_issue_ids = _current_issue_ids(current)
+    visible_issues = [issue for issue in result.issues if issue.rule_id in visible_issue_ids]
+    issue_items = "".join(f"<li>{escape(issue.message)}</li>" for issue in visible_issues)
     flash_html = f'<p class="flash">{escape(flash)}</p>' if flash else ""
 
     return f"""<!DOCTYPE html>
@@ -227,7 +239,7 @@ def render_application_prep_page(
   </section>
 
   <section>
-    <h2>現在の不足</h2>
+    <h2>現在工程の不足</h2>
     {'<p>不足はありません。</p>' if not issue_items else f'<ul class="issues">{issue_items}</ul>'}
   </section>
 </body>
