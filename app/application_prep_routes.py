@@ -37,6 +37,8 @@ def save_destination(
 ) -> RedirectResponse:
     if eligibility_confirmed != "yes":
         return _redirect("申請資格・欠格事由・担当者要件を確認してください。")
+    if not examining_body_name.strip():
+        return _redirect("申請先の審査機関を入力してください。")
     if application_method not in {"online", "mail", "other"}:
         return _redirect("申請方法を選択してください。")
     if uses_jipdec_forms not in {"yes", "no"}:
