@@ -19,13 +19,32 @@ def _redirect(message: str) -> RedirectResponse:
     return RedirectResponse(url=f"/application-prep?flash={quote(message)}", status_code=303)
 
 
-@router.get("", response_class=HTMLResponse)
-def application_prep_page(flash: str | None = None) -> str:
-    return render_application_prep_page(
-        application_prep_demo_state.get_state(),
+def _render_page(flash: str | None = None) -> str:
+    state = application_prep_demo_state.get_state()
+    html = render_application_prep_page(
+        state,
         build_application_prerequisites(),
         flash=flash,
     )
+
+    if state.application_method != "online":
+        html = html.replace(
+            "提出するPMS文書一式の電子データを準備した",
+            "申請方法に応じて、提出するPMS文書一式・必要な写しを準備した",
+        )
+
+    if state.uses_jipdec_forms is True and state.application_method == "mail":
+        html = html.replace(
+            "JIPDECへ郵送・持参する場合は、公開されている「新規申請書類一式」を使用します。",
+            "JIPDECへ郵送・持参する場合は、公開されている「新規申請書類一式」を使用します。"
+            "登記事項証明書、定款、PMS文書、個人情報管理台帳やリスク分析の必要な写しも含め、最新の提出案内で一式を確認してください。",
+        )
+    return html
+
+
+@router.get("", response_class=HTMLResponse)
+def application_prep_page(flash: str | None = None) -> str:
+    return _render_page(flash)
 
 
 @router.post("/destination")
