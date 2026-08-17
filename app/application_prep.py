@@ -1,8 +1,7 @@
 """Pマーク新規申請準備の評価ロジック。
 
-既存PMSの準備状況と、申請先・提出書類・アカウント・最終確認の記録を評価する。
-JIPDEC新規申請を選んだ場合は現行の申請様式4〜8を個別に要求し、それ以外の
-指定審査機関については各機関の様式一式を確認済みかを記録する。
+既存PMSの準備状況と、申請資格・申請先・提出書類・アカウント・最終確認の記録を評価する。
+JIPDECはオンラインと郵送・持参で申請書類の構成が異なるため、申請方法に応じて判定する。
 """
 
 from __future__ import annotations
@@ -22,7 +21,8 @@ def evaluate_application_prep(
     issues: list[ApplicationPrepIssue] = []
 
     destination_complete = bool(
-        state.examining_body_name
+        state.eligibility_confirmed
+        and state.examining_body_name
         and state.application_method in {"online", "mail", "other"}
         and state.uses_jipdec_forms is not None
     )
@@ -30,7 +30,7 @@ def evaluate_application_prep(
         issues.append(
             ApplicationPrepIssue(
                 "APP-001",
-                "申請先・申請方法・使用する申請様式体系を確認してください。",
+                "申請資格・申請先・申請方法・使用する申請様式体系を確認してください。",
             )
         )
 
@@ -44,7 +44,7 @@ def evaluate_application_prep(
     if not prerequisites.pms_review_ready:
         issues.append(ApplicationPrepIssue("APP-005", "内部監査・是正・マネジメントレビューを完了してください。"))
 
-    if state.uses_jipdec_forms is True:
+    if state.uses_jipdec_forms is True and state.application_method == "online":
         forms_complete = all(
             (
                 state.business_overview_prepared,
@@ -58,7 +58,16 @@ def evaluate_application_prep(
             issues.append(
                 ApplicationPrepIssue(
                     "APP-006",
-                    "JIPDEC新規申請の申請様式4〜8をすべて準備してください。",
+                    "JIPDECオンライン新規申請の申請様式4〜8をすべて準備してください。",
+                )
+            )
+    elif state.uses_jipdec_forms is True:
+        forms_complete = state.jipdec_mail_form_set_prepared
+        if not forms_complete:
+            issues.append(
+                ApplicationPrepIssue(
+                    "APP-006",
+                    "JIPDECの郵送・持参用『新規申請書類一式』を準備してください。",
                 )
             )
     elif state.uses_jipdec_forms is False:
