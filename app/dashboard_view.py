@@ -179,6 +179,10 @@ def _render_dev_tools() -> str:
         <button type="submit">運用検証用プリセットをセット</button>
         <span> — 初期設定完了後、4つの管理策運用を最初から確認</span>
       </form>
+      <form method="post" action="/dev/preset/annual-pms" style="margin-bottom:0.75rem;">
+        <button type="submit">年間PMS検証用プリセットをセット</button>
+        <span> — 初期設定完了後、年度運用計画から9工程の年間サイクルを確認</span>
+      </form>
       <form method="post" action="/dev/preset/pms-review">
         <button type="submit">PMSレビュー検証用プリセットをセット</button>
         <span> — 4つの管理策運用まで完了し、内部監査から確認</span>
