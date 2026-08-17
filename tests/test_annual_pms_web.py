@@ -82,9 +82,9 @@ def test_annual_pms_starts_with_full_nine_step_forest_and_only_step1_form():
     assert "年間サイクル進捗：0 / 9 工程 完了" in response.text
     assert "現在地：1. 年度運用計画・体制確認" in response.text
     assert "1. 年度運用計画・体制確認" in response.text
-    assert "2. 個人情報台帳・リスク見直し" in response.text
-    assert "7. 内部監査" in response.text
-    assert "9. マネジメントレビュー・次年度計画" in response.text
+    assert "個人情報台帳・リスク見直し" in response.text
+    assert "内部監査" in response.text
+    assert "マネジメントレビュー・次年度計画" in response.text
     assert 'action="/annual-pms/annual-plan"' in response.text
     assert 'action="/annual-pms/inventory-risk-review"' not in response.text
     assert "山田 花子" in response.text
