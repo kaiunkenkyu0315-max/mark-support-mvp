@@ -69,6 +69,12 @@ def save_corrective_action(
     approved_at: str = Form(...),
     evidence_name: str = Form(...),
 ) -> RedirectResponse:
+    before = evaluate_pms_review(pms_review_demo_state.get_state())
+    if not before.audit_complete:
+        return _redirect("現在の工程では是正処置を登録できません。先に内部監査記録を完成させてください。")
+    if not before.corrective_required:
+        return _redirect("内部監査で不適合が確認されていないため、是正処置の登録は不要です。")
+
     pms_review_demo_state.record_corrective_action(
         finding_summary=finding_summary,
         immediate_action=immediate_action,
@@ -97,6 +103,12 @@ def save_management_review(
     improvement_actions: str = Form(""),
     evidence_name: str = Form(...),
 ) -> RedirectResponse:
+    before = evaluate_pms_review(pms_review_demo_state.get_state())
+    if not before.audit_complete:
+        return _redirect("現在の工程ではマネジメントレビューを登録できません。先に内部監査記録を完成させてください。")
+    if before.corrective_required and not before.corrective_complete:
+        return _redirect("現在の工程ではマネジメントレビューを登録できません。先に必要な是正処置と有効性確認を完了してください。")
+
     pms_review_demo_state.record_management_review(
         review_date=review_date,
         top_management_name=top_management_name,
