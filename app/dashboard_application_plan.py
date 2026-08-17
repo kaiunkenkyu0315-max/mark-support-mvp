@@ -78,17 +78,21 @@ def _inject_application_preset_shortcut(html: str) -> str:
 
     if 'action="/dev/preset/application-prep"' in html:
         return html
-    marker = "</form>\n    </section>\n</body>"
-    addition = """</form>
+
+    body_index = html.rfind("</body>")
+    if body_index < 0:
+        return html
+    section_index = html.rfind("</section>", 0, body_index)
+    if section_index < 0:
+        return html
+
+    form = """
       <form method="post" action="/dev/preset/application-prep" style="margin-top:0.75rem;">
         <button type="submit">申請準備検証用プリセットをセット</button>
         <span> — PMSレビューまで完了し、申請先・方法の確認から開始</span>
       </form>
-    </section>
-</body>"""
-    if marker in html:
-        return html.replace(marker, addition, 1)
-    return html
+    """
+    return html[:section_index] + form + html[section_index:]
 
 
 def enhance_dashboard_with_application_plan(
