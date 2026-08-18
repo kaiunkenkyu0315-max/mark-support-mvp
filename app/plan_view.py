@@ -20,12 +20,31 @@ def _status_style(kind: str) -> str:
     }.get(kind, "background:#666;color:#fff;")
 
 
-def render_plan(plan: Plan, *, css_class: str = "plan-overview") -> str:
+def render_plan(
+    plan: Plan,
+    *,
+    css_class: str = "plan-overview",
+    current_only_actions: bool = False,
+) -> str:
+    """計画を表形式で描画する。
+
+    current_only_actions=True の場合は、全体計画を「地図」として使うため、
+    現在工程だけに行動リンクを表示する。年間PMS等の既存画面は既定値Falseのまま
+    従来どおり各工程のリンクを表示できる。
+    """
+
     rows: list[str] = []
     for step in plan.steps:
         current_marker = " ← 現在" if step.current else ""
         row_style = "background:#fff8ef;" if step.current else ""
-        action = f'<a href="{escape(step.link)}">確認する</a>' if step.link else "—"
+        action_visible = bool(step.link) and (not current_only_actions or step.current)
+        action = (
+            f'<a href="{escape(step.link)}">現在の工程へ</a>'
+            if action_visible and current_only_actions
+            else f'<a href="{escape(step.link)}">確認する</a>'
+            if action_visible
+            else "—"
+        )
         rows.append(
             f"""
             <tr style="{row_style}">
