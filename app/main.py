@@ -66,7 +66,12 @@ async def lifespan(app: FastAPI):
         except Exception:
             # 壊れたDBを初期状態で上書きしないよう、復元失敗時はその実行中の保存も無効化する。
             logger.exception("failed to restore prototype state; persistence disabled for this run")
-    yield
+    try:
+        yield
+    finally:
+        # 同じappを複数回起動するテストや開発セッションで、終了済みストアを再利用しない。
+        if hasattr(app.state, "prototype_store"):
+            delattr(app.state, "prototype_store")
 
 
 app = FastAPI(title=APP_NAME, lifespan=lifespan)
