@@ -61,6 +61,28 @@ def test_dashboard_shows_development_preset_shortcuts():
     assert 'action="/dev/preset/application-prep"' in response.text
 
 
+def test_dashboard_hides_development_shortcuts_when_dev_mode_is_disabled(monkeypatch):
+    monkeypatch.setenv("MARK_SUPPORT_DEV_TOOLS", "0")
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "開発用ショートカット" not in response.text
+    assert "/dev/preset/operations" not in response.text
+    assert "/dev/preset/annual-pms" not in response.text
+    assert "/dev/preset/pms-review" not in response.text
+    assert "/dev/preset/application-prep" not in response.text
+
+
+def test_development_preset_routes_are_not_available_when_dev_mode_is_disabled(monkeypatch):
+    monkeypatch.setenv("MARK_SUPPORT_DEV_TOOLS", "0")
+
+    response = client.post("/dev/preset/operations", follow_redirects=False)
+
+    assert response.status_code == 404
+    assert get_effective_setup_status(intake_demo_state.get_state()) == SetupStatus.NOT_STARTED
+
+
 def test_operational_review_preset_completes_setup_and_adopts_main_controls():
     response = client.post("/dev/preset/operations")
 
