@@ -8,6 +8,8 @@ from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import pms_review_demo_state
+from app.evidence_panel_view import append_evidence_panel, render_evidence_panel
+from app.evidence_store import get_default_evidence_store
 from app.pms_review import evaluate_pms_review
 from app.pms_review_view import render_pms_review_page
 
@@ -18,9 +20,30 @@ def _redirect(message: str) -> RedirectResponse:
     return RedirectResponse(url=f"/pms-review?flash={quote(message)}", status_code=303)
 
 
+def _render_page(flash: str | None = None) -> str:
+    html = render_pms_review_page(pms_review_demo_state.get_state(), flash=flash)
+    store = get_default_evidence_store()
+    audit_panel = render_evidence_panel(
+        area="internal_audit",
+        files=store.list("internal_audit"),
+        heading="内部監査の証跡ファイル",
+        description="内部監査報告書、チェックリスト、監査メモなどの実ファイルを補足証跡として添付できます。",
+        canonical_record_text="画面上の内部監査日・基準・範囲・結果・報告記録が正本です。",
+    )
+    management_review_panel = render_evidence_panel(
+        area="management_review",
+        files=store.list("management_review"),
+        heading="マネジメントレビューの証跡ファイル",
+        description="マネジメントレビュー議事録、説明資料、意思決定記録などの実ファイルを補足証跡として添付できます。",
+        canonical_record_text="画面上のレビュー日・インプット・決定事項・改善記録が正本です。",
+    )
+    html = append_evidence_panel(html, audit_panel)
+    return append_evidence_panel(html, management_review_panel)
+
+
 @router.get("", response_class=HTMLResponse)
 def pms_review_page(flash: str | None = None) -> str:
-    return render_pms_review_page(pms_review_demo_state.get_state(), flash=flash)
+    return _render_page(flash)
 
 
 @router.post("/audit")
