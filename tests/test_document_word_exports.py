@@ -87,7 +87,7 @@ def test_education_record_is_blocked_until_education_is_complete_then_exports_do
     assert "個人情報保護教育 実施記録" in xml
     assert "教育実施概要" in xml
     assert "受講・理解度確認記録" in xml
-    assert "山田 花子" in xml
+    assert "鈴木 花子" in xml
 
 
 def test_pms_document_list_exports_current_document_statuses_as_docx():
