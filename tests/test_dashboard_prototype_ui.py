@@ -53,10 +53,16 @@ def test_dashboard_orders_overview_then_next_action_then_details():
     assert "この作業を進める" in html
     assert preparation_summary in html
     assert "運用状況を詳しく見る" in html
+    assert "Pマーク取得・運用支援ツール MVP" not in html
+    assert "実装範囲進捗" not in html
+    assert "取得準備の進捗" in html
 
     assert html.index(plan_heading) < html.index(next_action_heading)
     assert html.index(next_action_heading) < html.index(preparation_summary)
     assert html.count('class="primary-action"') == 1
+
+    roadmap_html = html[html.index(plan_heading):html.index(next_action_heading)]
+    assert roadmap_html.count("現在の工程へ") == 1
 
 
 def test_dashboard_keeps_one_primary_action_when_multiple_areas_need_attention():
