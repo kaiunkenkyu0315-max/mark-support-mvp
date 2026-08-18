@@ -13,7 +13,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from app.document_schemas import Document
 from app.documents import CONTROL_NAME_LABELS
-from app.schemas import ComprehensionResult, EducationDemoState if False else TrainingPlan
+from app.schemas import ComprehensionResult
 
 
 CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
