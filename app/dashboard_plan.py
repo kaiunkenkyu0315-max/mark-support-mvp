@@ -108,7 +108,7 @@ def build_acquisition_plan(
     """現在の状態から取得ロードマップを組み立てる。
 
     review_resultを渡した場合は内部監査・是正・マネジメントレビューまで追跡する。
-    省略した呼び出しは従来どおりMVPの3工程だけを追跡できる。
+    省略した呼び出しは初期設定〜運用までの3工程を追跡する。
     """
 
     setup_status, setup_kind, setup_complete = _setup_status(data)
@@ -175,25 +175,29 @@ def build_acquisition_plan(
     tracked_completions = [item[6] for item in implemented_raw]
     completed = sum(1 for complete in tracked_completions if complete)
     if current_number is None:
-        current_text = f"MVP実装範囲完了（次の後続工程：{next_number}. {next(step.name for step in steps if step.number == next_number)}）"
+        current_text = f"準備工程完了（次の工程：{next_number}. {next(step.name for step in steps if step.number == next_number)}）"
     else:
         current_name = next(step.name for step in steps if step.number == current_number)
         current_text = f"{current_number}. {current_name}"
 
     return Plan(
         title="Pマーク取得の全体計画",
-        description="まず全体の順序と現在地を確認し、その後で下の詳細へ進みます。MVPで記録・判定できる工程だけを進捗として追跡します。",
+        description="申請準備までの全体の順序と現在地を示しています。作業は下の「次にやること」から順番に進めてください。",
         steps=steps,
         completed_count=completed,
         tracked_total=len(implemented_raw),
         current_text=current_text,
-        progress_label="実装範囲進捗",
-        footer_note="具体的な開始日・目標申請日を持つ計画や、取得後の年間PMS運用計画も、同じ計画形式へ拡張できる構造にしています。",
+        progress_label="取得準備の進捗",
+        footer_note="この計画は申請準備までの標準的な進め方を示します。実際の申請・審査は選択した審査機関の手続に従います。",
     )
 
 
 def render_acquisition_plan(plan: Plan) -> str:
-    return render_plan(plan, css_class="acquisition-plan")
+    return render_plan(
+        plan,
+        css_class="acquisition-plan",
+        current_only_actions=True,
+    )
 
 
 def enhance_dashboard_with_plan(
