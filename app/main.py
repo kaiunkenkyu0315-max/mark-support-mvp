@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
 from app import (
@@ -30,13 +33,43 @@ from app.paper import evaluate_paper_management
 from app.paper_routes import router as paper_router
 from app.pms_review import evaluate_pms_review
 from app.pms_review_routes import router as pms_review_router
+from app.prototype_persistence import (
+    SQLiteStateStore,
+    default_db_path,
+    persistence_enabled,
+    restore_current_state,
+    save_current_state,
+)
 from app.setup_progress import get_effective_setup_status
 from app.vendor_routes import router as vendor_router
 from app.vendors import evaluate_vendors
 
 APP_NAME = "Pマーク取得・運用支援ツール MVP"
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title=APP_NAME)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """通常実行ではSQLiteからプロトタイプ状態を復元する。"""
+
+    if persistence_enabled():
+        store = SQLiteStateStore(default_db_path())
+        try:
+            store.initialize()
+            restored_count = restore_current_state(store)
+            app.state.prototype_store = store
+            logger.info(
+                "prototype persistence ready: %s (restored=%d)",
+                store.path,
+                restored_count,
+            )
+        except Exception:
+            # 壊れたDBを初期状態で上書きしないよう、復元失敗時はその実行中の保存も無効化する。
+            logger.exception("failed to restore prototype state; persistence disabled for this run")
+    yield
+
+
+app = FastAPI(title=APP_NAME, lifespan=lifespan)
 app.include_router(intake_router)
 app.include_router(education_router)
 app.include_router(vendor_router)
@@ -47,6 +80,22 @@ app.include_router(application_prep_router)
 app.include_router(annual_pms_router)
 app.include_router(document_router)
 app.include_router(dev_router)
+
+
+@app.middleware("http")
+async def persist_successful_mutations(request: Request, call_next):
+    """成功した更新操作のあとに、現在の業務状態をSQLiteへ保存する。"""
+
+    response = await call_next(request)
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and response.status_code < 400:
+        store = getattr(request.app.state, "prototype_store", None)
+        if store is not None:
+            try:
+                save_current_state(store)
+            except Exception:
+                # 画面上の操作結果は維持しつつ、保存失敗はサーバーログで明示する。
+                logger.exception("failed to persist prototype state")
+    return response
 
 
 @app.get("/health")
