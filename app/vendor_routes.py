@@ -13,6 +13,8 @@ from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import intake_demo_state, vendor_demo_state
+from app.evidence_panel_view import append_evidence_panel, render_evidence_panel
+from app.evidence_store import get_default_evidence_store
 from app.operational_gate import operational_control_is_adopted, render_inactive_operation_page
 from app.vendor_schemas import AssessmentResult
 from app.vendor_view import render_vendor_page
@@ -57,7 +59,14 @@ def _render_current_page(flash: str | None = None) -> str:
     control_suggestions = intake_demo_state.get_state().control_suggestions
     html = render_vendor_page(state, result, control_suggestions, flash=flash)
     html = enhance_vendor_page(html, state, result)
-    return _polish_display_labels(html)
+    html = _polish_display_labels(html)
+    panel = render_evidence_panel(
+        area="vendor_management",
+        files=get_default_evidence_store().list("vendor_management"),
+        description="委託先評価票、契約確認資料、定期評価結果などの実ファイルを補足証跡として添付できます。",
+        canonical_record_text="画面上の初回評価・契約確認・定期評価の事実記録が正本です。",
+    )
+    return append_evidence_panel(html, panel)
 
 
 def _redirect_with_flash(action_key: str) -> RedirectResponse:
