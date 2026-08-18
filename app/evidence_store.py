@@ -10,12 +10,14 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 _ALLOWED_SUFFIXES = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".png", ".jpg", ".jpeg"}
 _MAX_FILE_SIZE = 10 * 1024 * 1024
+_JST = ZoneInfo("Asia/Tokyo")
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,16 @@ class EvidenceFile:
     content_type: str
     size_bytes: int
     uploaded_at: str
+    fiscal_year: int | None = None
+
+    @property
+    def registered_on(self) -> str:
+        """画面表示用の登録日。旧manifestのUTC日時もISO日付として安全に表示する。"""
+
+        try:
+            return datetime.fromisoformat(self.uploaded_at).astimezone(_JST).date().isoformat()
+        except (ValueError, TypeError):
+            return self.uploaded_at[:10]
 
 
 class EvidenceStore:
@@ -54,7 +66,15 @@ class EvidenceStore:
             json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-    def save(self, area: str, filename: str, content: bytes, content_type: str | None = None) -> EvidenceFile:
+    def save(
+        self,
+        area: str,
+        filename: str,
+        content: bytes,
+        content_type: str | None = None,
+        *,
+        fiscal_year: int | None = None,
+    ) -> EvidenceFile:
         original_name = Path(filename or "").name.strip()
         if not original_name:
             raise ValueError("ファイル名を確認してください")
@@ -79,7 +99,8 @@ class EvidenceStore:
             stored_name=stored_name,
             content_type=content_type or "application/octet-stream",
             size_bytes=len(content),
-            uploaded_at=datetime.now(timezone.utc).isoformat(),
+            uploaded_at=datetime.now(_JST).isoformat(),
+            fiscal_year=fiscal_year,
         )
         rows = self._load_manifest(area)
         rows.append(asdict(item))
