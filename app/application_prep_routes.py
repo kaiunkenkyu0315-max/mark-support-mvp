@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import application_prep_demo_state
 from app.application_prep import evaluate_application_prep
 from app.application_prep_context import build_application_prerequisites
+from app.application_prep_goal_view import enhance_application_prep_page
 from app.application_prep_view import render_application_prep_page
 
 router = APIRouter(prefix="/application-prep", tags=["application-prep"])
@@ -21,9 +22,10 @@ def _redirect(message: str) -> RedirectResponse:
 
 def _render_page(flash: str | None = None) -> str:
     state = application_prep_demo_state.get_state()
+    prerequisites = build_application_prerequisites()
     html = render_application_prep_page(
         state,
-        build_application_prerequisites(),
+        prerequisites,
         flash=flash,
     )
 
@@ -39,7 +41,7 @@ def _render_page(flash: str | None = None) -> str:
             "JIPDECへ郵送・持参する場合は、公開されている「新規申請書類一式」を使用します。"
             "登記事項証明書、定款、PMS文書、個人情報管理台帳やリスク分析の必要な写しも含め、最新の提出案内で一式を確認してください。",
         )
-    return html
+    return enhance_application_prep_page(html, state, prerequisites)
 
 
 @router.get("", response_class=HTMLResponse)
