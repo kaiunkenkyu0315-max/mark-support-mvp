@@ -40,6 +40,7 @@ from app.prototype_persistence import (
     restore_current_state,
     save_current_state,
 )
+from app.prototype_settings import dev_tools_enabled
 from app.setup_progress import get_effective_setup_status
 from app.vendor_routes import router as vendor_router
 from app.vendors import evaluate_vendors
@@ -215,7 +216,11 @@ def index() -> str:
 
     focus_dashboard_todos(dashboard_data)
 
-    html = render_dashboard_page(APP_NAME, dashboard_data)
+    html = render_dashboard_page(
+        APP_NAME,
+        dashboard_data,
+        show_dev_tools=dev_tools_enabled(),
+    )
     return enhance_dashboard_with_application_plan(
         html,
         dashboard_data,
