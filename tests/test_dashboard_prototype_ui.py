@@ -44,14 +44,18 @@ def test_dashboard_orders_overview_then_next_action_then_details():
     assert response.status_code == 200
     html = response.text
 
-    assert "Pマーク取得の全体計画" in html
-    assert "次にやること" in html
+    plan_heading = '<h2 style="margin-top:0;">Pマーク取得の全体計画</h2>'
+    next_action_heading = "<h2>次にやること</h2>"
+    preparation_summary = "Pマーク準備状況を詳しく見る"
+
+    assert plan_heading in html
+    assert next_action_heading in html
     assert "この作業を進める" in html
-    assert "Pマーク準備状況を詳しく見る" in html
+    assert preparation_summary in html
     assert "運用状況を詳しく見る" in html
 
-    assert html.index("Pマーク取得の全体計画") < html.index("次にやること")
-    assert html.index("次にやること") < html.index("Pマーク準備状況を詳しく見る")
+    assert html.index(plan_heading) < html.index(next_action_heading)
+    assert html.index(next_action_heading) < html.index(preparation_summary)
     assert html.count('class="primary-action"') == 1
 
 
