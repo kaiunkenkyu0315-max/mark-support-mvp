@@ -45,7 +45,7 @@ from app.setup_progress import get_effective_setup_status
 from app.vendor_routes import router as vendor_router
 from app.vendors import evaluate_vendors
 
-APP_NAME = "Pマーク取得・運用支援ツール MVP"
+APP_NAME = "Pマーク取得・運用支援"
 logger = logging.getLogger(__name__)
 
 
