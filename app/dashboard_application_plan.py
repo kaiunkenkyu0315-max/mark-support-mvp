@@ -73,28 +73,6 @@ def build_acquisition_plan_with_application(
     )
 
 
-def _inject_application_preset_shortcut(html: str) -> str:
-    """既存の開発ショートカット末尾へ、申請準備用プリセットを追加する。"""
-
-    if 'action="/dev/preset/application-prep"' in html:
-        return html
-
-    body_index = html.rfind("</body>")
-    if body_index < 0:
-        return html
-    section_index = html.rfind("</section>", 0, body_index)
-    if section_index < 0:
-        return html
-
-    form = """
-      <form method="post" action="/dev/preset/application-prep" style="margin-top:0.75rem;">
-        <button type="submit">申請準備検証用プリセットをセット</button>
-        <span> — PMSレビューまで完了し、申請先・方法の確認から開始</span>
-      </form>
-    """
-    return html[:section_index] + form + html[section_index:]
-
-
 def enhance_dashboard_with_application_plan(
     html: str,
     data: DashboardData,
@@ -107,7 +85,5 @@ def enhance_dashboard_with_application_plan(
     )
     marker = '<section class="todo-section">'
     if marker in html:
-        html = html.replace(marker, plan_html + marker, 1)
-    else:
-        html = html.replace("</p>", "</p>" + plan_html, 1)
-    return _inject_application_preset_shortcut(html)
+        return html.replace(marker, plan_html + marker, 1)
+    return html.replace("</p>", "</p>" + plan_html, 1)
