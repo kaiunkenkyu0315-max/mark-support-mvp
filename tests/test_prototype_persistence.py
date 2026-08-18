@@ -1,7 +1,10 @@
 import sqlite3
 
+from fastapi.testclient import TestClient
+
 from app import company_profile, intake_demo_state
-from app.intake_schemas import QuestionnaireAnswers
+from app.intake_schemas import QuestionnaireAnswers, SetupStatus
+from app.main import app
 from app.prototype_persistence import (
     SQLiteStateStore,
     apply_state_snapshot,
@@ -9,6 +12,7 @@ from app.prototype_persistence import (
     restore_current_state,
     save_current_state,
 )
+from app.setup_progress import get_effective_setup_status
 
 
 def test_sqlite_round_trip_restores_all_registered_prototype_state(tmp_path):
@@ -65,5 +69,36 @@ def test_sqlite_round_trip_restores_all_registered_prototype_state(tmp_path):
         assert intake_demo_state.get_state().answers.allows_remote_access is True
         assert intake_demo_state.get_state().candidates
         assert intake_demo_state.get_state().risks
+    finally:
+        apply_state_snapshot(baseline)
+
+
+def test_application_restart_restores_successful_mutations_from_sqlite(tmp_path, monkeypatch):
+    baseline = capture_current_state()
+    db_path = tmp_path / "restart" / "prototype.sqlite3"
+    monkeypatch.setenv("MARK_SUPPORT_PERSISTENCE", "1")
+    monkeypatch.setenv("MARK_SUPPORT_DB_PATH", str(db_path))
+
+    try:
+        with TestClient(app) as client:
+            response = client.post("/dev/preset/operations", follow_redirects=False)
+            assert response.status_code == 303
+            assert get_effective_setup_status(intake_demo_state.get_state()) == SetupStatus.COMPLETE
+            assert company_profile.get_state().configured is True
+
+        assert db_path.exists()
+
+        # サーバープロセス終了を模してインメモリ正本を消す。
+        company_profile.reset_state()
+        intake_demo_state.reset_state()
+        assert get_effective_setup_status(intake_demo_state.get_state()) == SetupStatus.NOT_STARTED
+        assert company_profile.get_state().configured is False
+
+        # 同じFastAPIアプリを再起動するとlifespanでSQLiteから状態が復元される。
+        with TestClient(app) as client:
+            response = client.get("/")
+            assert response.status_code == 200
+            assert get_effective_setup_status(intake_demo_state.get_state()) == SetupStatus.COMPLETE
+            assert company_profile.get_state().configured is True
     finally:
         apply_state_snapshot(baseline)
