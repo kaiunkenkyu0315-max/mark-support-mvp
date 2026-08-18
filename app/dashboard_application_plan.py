@@ -59,7 +59,7 @@ def build_acquisition_plan_with_application(
     elif not app_complete:
         current_text = "6. 申請準備"
     else:
-        current_text = "MVP実装範囲完了（次の外部工程：7. 申請・審査）"
+        current_text = "申請準備まで完了（次の外部工程：7. 申請・審査）"
 
     return Plan(
         title=base.title,
@@ -82,6 +82,7 @@ def enhance_dashboard_with_application_plan(
     plan_html = render_plan(
         build_acquisition_plan_with_application(data, review_result, application_result),
         css_class="acquisition-plan",
+        current_only_actions=True,
     )
     marker = '<section class="todo-section">'
     if marker in html:
