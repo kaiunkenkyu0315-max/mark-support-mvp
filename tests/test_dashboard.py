@@ -91,13 +91,15 @@ def test_dashboard_document_card_does_not_show_actionable_shortage_before_setup_
     assert "情報不足" not in response.text
 
 
-# --- 1d. 初期設定未着手時、「今やること」は初期設定の1件のみ ---
+# --- 1d. 初期設定未着手時、「次にやること」は初期設定の1件だけを主表示する ---
 
 
 def test_dashboard_todo_list_has_only_setup_item_before_setup_starts():
     response = client.get("/")
 
-    assert "今やること　1件" in response.text
+    assert "<h2>次にやること</h2>" in response.text
+    assert response.text.count('class="primary-action"') == 1
+    assert "そのほかの対応予定" not in response.text
     assert "の入力が不足しています" not in response.text
     assert "初期設定" in response.text
 
@@ -290,7 +292,7 @@ def test_setup_page_shows_ledger_management_method_and_related_controls():
     assert "個人情報保護教育" in response.text
 
 
-# --- 9. 初期設定中は文書不足todoを割り込ませず、現在工程1件だけを表示する ---
+# --- 9. 初期設定中は文書不足todoを割り込ませず、現在工程1件だけを主表示する ---
 
 
 def test_dashboard_hides_document_shortage_todo_while_setup_is_in_progress():
@@ -300,7 +302,8 @@ def test_dashboard_hides_document_shortage_todo_while_setup_is_in_progress():
 
     response = client.get("/")
 
-    assert "今やること　1件" in response.text
+    assert "<h2>次にやること</h2>" in response.text
+    assert response.text.count('class="primary-action"') == 1
     assert "個人情報台帳" in response.text
     assert "文書：個人情報管理台帳の入力が不足しています。" not in response.text
 
