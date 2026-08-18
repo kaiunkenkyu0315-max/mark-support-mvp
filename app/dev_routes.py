@@ -1,6 +1,6 @@
 """MVP開発中だけ使う検証用ルート。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
 from app.dev_preset import (
@@ -9,8 +9,21 @@ from app.dev_preset import (
     load_operational_review_preset,
     load_pms_review_preset,
 )
+from app.prototype_settings import dev_tools_enabled
 
-router = APIRouter(prefix="/dev", tags=["development"])
+
+def require_dev_tools() -> None:
+    """通常利用時は開発用URL自体を公開しない。"""
+
+    if not dev_tools_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+router = APIRouter(
+    prefix="/dev",
+    tags=["development"],
+    dependencies=[Depends(require_dev_tools)],
+)
 
 
 @router.post("/preset/operations")
