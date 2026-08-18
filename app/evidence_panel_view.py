@@ -30,6 +30,7 @@ def render_evidence_panel(
     description: str,
     canonical_record_text: str,
     heading: str = "証跡ファイル",
+    completion_scope: str = "この業務工程",
 ) -> str:
     area_label = AREA_LABELS.get(area, area)
     if files:
@@ -68,7 +69,7 @@ def render_evidence_panel(
       <h2 style="margin-top:0;">{escape(heading)}</h2>
       <p>{escape(description)}</p>
       <p style="background:#fff8ef; padding:.7rem 1rem;">
-        <strong>ファイルを添付しただけでは、この業務工程の完了・適合にはなりません。</strong>
+        <strong>ファイルを添付しただけでは、{escape(completion_scope)}の完了・適合にはなりません。</strong>
         {escape(canonical_record_text)}
       </p>
       {existing}
