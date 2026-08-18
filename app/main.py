@@ -28,6 +28,7 @@ from app.document_routes import get_current_documents
 from app.document_routes import router as document_router
 from app.education import evaluate_training
 from app.education_routes import router as education_router
+from app.evidence_routes import router as evidence_router
 from app.intake_routes import router as intake_router
 from app.paper import evaluate_paper_management
 from app.paper_routes import router as paper_router
@@ -78,6 +79,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=APP_NAME, lifespan=lifespan)
 app.include_router(intake_router)
 app.include_router(education_router)
+app.include_router(evidence_router)
 app.include_router(vendor_router)
 app.include_router(access_control_router)
 app.include_router(paper_router)
