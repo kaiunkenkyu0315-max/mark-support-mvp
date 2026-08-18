@@ -174,7 +174,7 @@ def _render_dev_tools() -> str:
     return """
     <section class="dev-tools">
       <h2>開発用ショートカット</h2>
-      <p>サーバー再起動後の手入力を省き、確認したい深さからすぐ検証できます。</p>
+      <p>検証時だけ利用する開発機能です。通常利用者には表示されません。</p>
       <form method="post" action="/dev/preset/operations" style="margin-bottom:0.75rem;">
         <button type="submit">運用検証用プリセットをセット</button>
         <span> — 初期設定完了後、4つの管理策運用を最初から確認</span>
@@ -183,15 +183,25 @@ def _render_dev_tools() -> str:
         <button type="submit">年間PMS検証用プリセットをセット</button>
         <span> — 初期設定完了後、年度運用計画から9工程の年間サイクルを確認</span>
       </form>
-      <form method="post" action="/dev/preset/pms-review">
+      <form method="post" action="/dev/preset/pms-review" style="margin-bottom:0.75rem;">
         <button type="submit">PMSレビュー検証用プリセットをセット</button>
         <span> — 4つの管理策運用まで完了し、内部監査から確認</span>
+      </form>
+      <form method="post" action="/dev/preset/application-prep">
+        <button type="submit">申請準備検証用プリセットをセット</button>
+        <span> — PMSレビューまで完了し、申請先・方法の確認から開始</span>
       </form>
     </section>
     """
 
 
-def render_dashboard_page(app_name: str, data: DashboardData) -> str:
+def render_dashboard_page(
+    app_name: str,
+    data: DashboardData,
+    *,
+    show_dev_tools: bool = False,
+) -> str:
+    dev_tools_html = _render_dev_tools() if show_dev_tools else ""
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -236,7 +246,7 @@ def render_dashboard_page(app_name: str, data: DashboardData) -> str:
   {_render_todo_section(data)}
   {_render_preparation_section(data)}
   {_render_operational_section(data)}
-  {_render_dev_tools()}
+  {dev_tools_html}
 </body>
 </html>
 """
