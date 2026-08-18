@@ -38,7 +38,7 @@ def test_acquisition_plan_is_the_top_level_forest_before_next_action_and_details
 
     assert response.status_code == 200
     assert "Pマーク取得の全体計画" in response.text
-    assert "実装範囲進捗：0 / 6 工程 完了" in response.text
+    assert "取得準備の進捗：0 / 6 工程 完了" in response.text
     assert "現在地：1. 初期設定" in response.text
     assert "内部監査・是正" in response.text
     assert "マネジメントレビュー" in response.text
@@ -51,6 +51,12 @@ def test_acquisition_plan_is_the_top_level_forest_before_next_action_and_details
     preparation_index = response.text.index("Pマーク準備状況を詳しく見る")
     assert plan_index < next_action_index < preparation_index
 
+    plan_html = response.text[plan_index:next_action_index]
+    assert plan_html.count("現在の工程へ") == 1
+    assert 'href="/setup"' in plan_html
+    assert 'href="/documents"' not in plan_html
+    assert 'href="/pms-review"' not in plan_html
+
 
 def test_operational_review_preset_places_current_location_at_operations_and_keeps_one_primary_action():
     _reset_all()
@@ -59,7 +65,7 @@ def test_operational_review_preset_places_current_location_at_operations_and_kee
     _reset_all()
 
     assert response.status_code == 200
-    assert "実装範囲進捗：2 / 6 工程 完了" in response.text
+    assert "取得準備の進捗：2 / 6 工程 完了" in response.text
     assert "現在地：3. 採用管理策の運用" in response.text
     assert "<h2>次にやること</h2>" in response.text
     assert response.text.count('class="primary-action"') == 1
@@ -77,7 +83,7 @@ def test_pms_review_preset_moves_current_location_to_internal_audit():
     _reset_all()
 
     assert response.status_code == 200
-    assert "実装範囲進捗：3 / 6 工程 完了" in response.text
+    assert "取得準備の進捗：3 / 6 工程 完了" in response.text
     assert "現在地：4. 内部監査・是正" in response.text
     assert "<h3>PMS評価・改善</h3>" in response.text
     assert 'href="/pms-review"' in response.text
@@ -103,7 +109,7 @@ def test_acquisition_plan_moves_to_management_review_after_audit_without_finding
     response = client.get("/")
     _reset_all()
 
-    assert "実装範囲進捗：4 / 6 工程 完了" in response.text
+    assert "取得準備の進捗：4 / 6 工程 完了" in response.text
     assert "現在地：5. マネジメントレビュー" in response.text
 
 
@@ -115,7 +121,7 @@ def test_acquisition_plan_moves_to_application_prep_after_management_review():
     _reset_all()
 
     assert response.status_code == 200
-    assert "実装範囲進捗：5 / 6 工程 完了" in response.text
+    assert "取得準備の進捗：5 / 6 工程 完了" in response.text
     assert "現在地：6. 申請準備" in response.text
     assert "<h3>申請準備</h3>" in response.text
     assert 'href="/application-prep"' in response.text
@@ -151,7 +157,7 @@ def test_acquisition_plan_marks_application_prep_complete_but_keeps_external_rev
     _reset_all()
 
     assert response.status_code == 200
-    assert "実装範囲進捗：6 / 6 工程 完了" in response.text
-    assert "現在地：MVP実装範囲完了（次の外部工程：7. 申請・審査）" in response.text
+    assert "取得準備の進捗：6 / 6 工程 完了" in response.text
+    assert "現在地：申請準備まで完了（次の外部工程：7. 申請・審査）" in response.text
     assert "外部工程" in response.text
     assert "Pマーク取得完了" not in response.text
