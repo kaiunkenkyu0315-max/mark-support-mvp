@@ -23,6 +23,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from app import (
     access_control_demo_state,
     annual_cycle_demo_state,
@@ -81,13 +83,22 @@ def _resolve_type(path: str) -> type[Any]:
 
 
 def _encode(value: Any) -> Any:
-    """dataclass/Enumを含む状態を型情報付きJSON互換値へ変換する。"""
+    """dataclass/Pydantic/Enumを含む状態を型情報付きJSON互換値へ変換する。"""
 
     if isinstance(value, Enum):
         return {
             "__kind__": "enum",
             "type": _type_path(type(value)),
             "value": _encode(value.value),
+        }
+    if isinstance(value, BaseModel):
+        return {
+            "__kind__": "pydantic",
+            "type": _type_path(type(value)),
+            "fields": {
+                field_name: _encode(getattr(value, field_name))
+                for field_name in type(value).model_fields
+            },
         }
     if is_dataclass(value) and not isinstance(value, type):
         return {
@@ -125,6 +136,10 @@ def _decode(value: Any) -> Any:
     if kind == "enum":
         enum_type = _resolve_type(value["type"])
         return enum_type(_decode(value["value"]))
+    if kind == "pydantic":
+        model_type = _resolve_type(value["type"])
+        model_data = {name: _decode(item) for name, item in value["fields"].items()}
+        return model_type.model_validate(model_data)
     if kind == "dataclass":
         data_type = _resolve_type(value["type"])
         kwargs = {name: _decode(item) for name, item in value["fields"].items()}
