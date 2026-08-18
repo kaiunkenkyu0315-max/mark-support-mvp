@@ -103,7 +103,7 @@ def _render_export_panel(
     ledger_action = (
         '<a class="export-button" href="/documents/export/personal-information-ledger.docx">Word出力</a>'
         if ledger_ready
-        else '<span class="export-pending">台帳情報の準備完了後に出力できます</span>'
+        else '<span class="export-pending">台帳情報の入力完了後に出力できます</span>'
     )
     education_action = (
         '<a class="export-button" href="/documents/export/education-record.docx">Word出力</a>'
@@ -269,7 +269,7 @@ def render_document_detail_page(document: Document) -> str:
   <p><a href="/documents">&laquo; 文書管理へ戻る</a></p>
   <h1>{_escape(document.title)}</h1>
   <div class="preview-disclaimer">
-    現在の登録情報から生成した文書プレビューです。準備完了した代表文書はWord出力できます。承認・版管理は今後の製品化対象です。
+    現在の登録情報から生成した文書プレビューです。Word出力に対応している代表文書はファイルとして取得できます。承認・版管理は今後の製品化対象です。
   </div>
 
   <div class="document-meta">
