@@ -107,16 +107,20 @@ def _render_documents_card(data: DashboardData) -> str:
 
 def _render_preparation_section(data: DashboardData) -> str:
     return f"""
-    <section>
-      <h2>Pマーク準備状況</h2>
-      <div class="summary-grid">
-        {_render_setup_card(data)}
-        {_render_personal_information_card(data)}
-        {_render_risk_card(data)}
-        {_render_controls_card(data)}
-        {_render_documents_card(data)}
-      </div>
-    </section>
+    <details class="secondary-section">
+      <summary>Pマーク準備状況を詳しく見る</summary>
+      <section>
+        <h2>Pマーク準備状況</h2>
+        <p>初期設定・個人情報・リスク・管理策・文書の現在状態を確認できます。</p>
+        <div class="summary-grid">
+          {_render_setup_card(data)}
+          {_render_personal_information_card(data)}
+          {_render_risk_card(data)}
+          {_render_controls_card(data)}
+          {_render_documents_card(data)}
+        </div>
+      </section>
+    </details>
     """
 
 
@@ -134,38 +138,64 @@ def _render_operational_card(area) -> str:
 def _render_operational_section(data: DashboardData) -> str:
     cards = "".join(_render_operational_card(area) for area in data.operational_areas)
     return f"""
-    <section>
-      <h2>運用状況</h2>
-      <p>採用済みの管理策についてのみ、運用上の状態（適合しているか、対応が必要か）を表示します。
-      未採用の管理策は、運用中であるかのようには表示しません。</p>
-      <div class="summary-grid">{cards}</div>
-    </section>
+    <details class="secondary-section">
+      <summary>運用状況を詳しく見る</summary>
+      <section>
+        <h2>運用状況</h2>
+        <p>採用済みの管理策についてのみ、運用上の状態（適合しているか、対応が必要か）を表示します。
+        未採用の管理策は、運用中であるかのようには表示しません。</p>
+        <div class="summary-grid">{cards}</div>
+      </section>
+    </details>
+    """
+
+
+def _render_remaining_todos(items) -> str:
+    if not items:
+        return ""
+
+    rows = "".join(
+        f"""
+        <li>
+          <strong>{_escape(item.area)}</strong>：{_escape(item.message)}
+          <a href="{item.link}">確認する</a>
+        </li>
+        """
+        for item in items
+    )
+    return f"""
+      <details class="remaining-actions">
+        <summary>そのほかの対応予定　{len(items)}件</summary>
+        <ul>{rows}</ul>
+      </details>
     """
 
 
 def _render_todo_section(data: DashboardData) -> str:
     if not data.todo_items:
         return """
-        <section class="todo-section">
-          <h2>今やること</h2>
-          <p class="todo-empty complete">対応が必要な項目はありません。</p>
+        <section class="todo-section current-action-section">
+          <h2>次にやること</h2>
+          <div class="todo-empty complete">
+            <strong>現在、対応が必要な項目はありません。</strong>
+            <p>全体計画の現在地と各工程の状態を確認してください。</p>
+          </div>
         </section>
         """
 
-    items = "".join(
-        f"""
-        <li class="todo-item warning">
-          <p class="todo-headline">{_escape(item.area)}：{_escape(item.message)}</p>
-          <p><a href="{item.link}">確認する</a></p>
-        </li>
-        """
-        for item in data.todo_items
-    )
-
+    primary = data.todo_items[0]
+    remaining_html = _render_remaining_todos(data.todo_items[1:])
     return f"""
-    <section class="todo-section">
-      <h2>今やること　{data.todo_count}件</h2>
-      <ul class="todo-list">{items}</ul>
+    <section class="todo-section current-action-section">
+      <h2>次にやること</h2>
+      <p class="current-action-intro">まずはこの1件を進めてください。完了すると、次に必要な作業が更新されます。</p>
+      <div class="current-action-card">
+        <p class="current-action-label">現在の作業</p>
+        <h3>{_escape(primary.area)}</h3>
+        <p class="current-action-message">{_escape(primary.message)}</p>
+        <p><a class="primary-action" href="{primary.link}">この作業を進める</a></p>
+      </div>
+      {remaining_html}
     </section>
     """
 
@@ -208,12 +238,32 @@ def render_dashboard_page(
   <meta charset="utf-8">
   <title>{_escape(app_name)}</title>
   <style>
-    body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 1000px; }}
+    body {{ font-family: sans-serif; margin: 2rem; line-height: 1.6; max-width: 1000px; color:#222; }}
     h1 {{ margin-bottom: 0.3rem; }}
-    .tagline {{ color: #555; margin-top: 0; }}
+    .tagline {{ color: #555; margin-top: 0; max-width:760px; }}
     section {{ margin-bottom: 2rem; }}
     section > p {{ color: #555; }}
     .todo-section {{ margin-top: 1.25rem; }}
+    .current-action-section {{ margin-bottom:2rem; }}
+    .current-action-intro {{ margin-top:-0.4rem; }}
+    .current-action-card {{
+      border:2px solid #b36b00; border-radius:8px; padding:1.25rem 1.4rem; background:#fffaf2;
+    }}
+    .current-action-card h3 {{ margin:0.1rem 0 0.6rem; font-size:1.35rem; }}
+    .current-action-label {{ margin:0; color:#8a5200; font-size:0.85rem; font-weight:bold; }}
+    .current-action-message {{ font-size:1.05rem; color:#222; }}
+    .primary-action {{
+      display:inline-block; padding:0.65rem 1rem; border-radius:5px; background:#8a5200; color:#fff;
+      text-decoration:none; font-weight:bold;
+    }}
+    .primary-action:hover {{ text-decoration:underline; }}
+    .remaining-actions {{ margin-top:0.9rem; color:#555; }}
+    .remaining-actions summary {{ cursor:pointer; font-weight:bold; }}
+    .remaining-actions li {{ margin:0.45rem 0; }}
+    .remaining-actions a {{ margin-left:0.5rem; }}
+    .secondary-section {{ border-top:1px solid #ddd; padding:0.9rem 0; }}
+    .secondary-section > summary {{ cursor:pointer; font-weight:bold; font-size:1.05rem; color:#444; }}
+    .secondary-section > section {{ margin:1rem 0 0; }}
     .summary-grid {{
       display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;
     }}
@@ -228,20 +278,17 @@ def render_dashboard_page(
     .status-badge.needs-action {{ background: #b30000; color: #fff; }}
     .status-badge.compliant {{ background: #0a7a0a; color: #fff; }}
     .status-badge.not-started {{ background: #666; color: #fff; }}
-    .todo-list {{ list-style: none; margin: 0; padding: 0; }}
-    .todo-item {{ padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-radius: 4px; }}
-    .todo-item.warning {{ background: #fff8ef; border-left: 4px solid #d9822b; }}
-    .todo-headline {{ font-weight: bold; margin: 0 0 0.3rem; }}
     .todo-empty.complete {{
-      padding: 0.75rem 1rem; background: #eefaf0; border-left: 4px solid #0a7a0a;
+      padding: 0.9rem 1rem; background: #eefaf0; border-left: 4px solid #0a7a0a;
     }}
+    .todo-empty.complete p {{ margin-bottom:0; }}
     .dev-tools {{ border-top: 1px dashed #aaa; padding-top: 1rem; color: #666; }}
     .dev-tools h2 {{ font-size: 1rem; }}
   </style>
 </head>
 <body>
   <h1>{_escape(app_name)}</h1>
-  <p class="tagline">Pマーク取得・運用の準備状況を、ひとつの画面で確認できます。</p>
+  <p class="tagline">全体の現在地を確認し、画面に表示される「次にやること」を順番に進めることで、Pマーク申請に必要な準備を整えていきます。</p>
 
   {_render_todo_section(data)}
   {_render_preparation_section(data)}
