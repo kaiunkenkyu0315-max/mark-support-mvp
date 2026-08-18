@@ -161,3 +161,31 @@ def load_application_prep_preset() -> None:
     )
 
     application_prep_demo_state.reset_state()
+
+
+def load_application_goal_preset() -> None:
+    """申請準備を完了し、ゴール画面を即確認できる状態を作る。"""
+
+    load_application_prep_preset()
+    application_prep_demo_state.record_destination(
+        eligibility_confirmed=True,
+        examining_body_name="JIPDEC",
+        application_method="online",
+        uses_jipdec_forms=True,
+    )
+    application_prep_demo_state.record_forms(
+        business_overview_prepared=True,
+        office_list_prepared=True,
+        pms_document_list_prepared=True,
+        education_summary_prepared=True,
+        audit_mr_summary_prepared=True,
+    )
+    application_prep_demo_state.record_submission_data(
+        pms_document_bundle_prepared=True,
+        online_account_ready=True,
+    )
+    application_prep_demo_state.record_final_review(
+        final_reviewed_by="山田 花子",
+        final_reviewed_at="2026-08-10",
+        submission_ready_confirmed=True,
+    )
