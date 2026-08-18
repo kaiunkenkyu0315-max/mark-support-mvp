@@ -1,10 +1,41 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from app import demo_state
+from app import (
+    access_control_demo_state,
+    annual_cycle_demo_state,
+    application_prep_demo_state,
+    company_profile,
+    demo_state,
+    intake_demo_state,
+    paper_demo_state,
+    pms_review_demo_state,
+    vendor_demo_state,
+)
 from app.education import evaluate_training
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_all_demo_states():
+    modules = (
+        company_profile,
+        intake_demo_state,
+        demo_state,
+        vendor_demo_state,
+        access_control_demo_state,
+        paper_demo_state,
+        pms_review_demo_state,
+        application_prep_demo_state,
+        annual_cycle_demo_state,
+    )
+    for module in modules:
+        module.reset_state()
+    yield
+    for module in modules:
+        module.reset_state()
 
 
 def _education_issue_count() -> int:
@@ -31,7 +62,7 @@ def test_education_can_attach_and_download_real_evidence_without_changing_compli
     assert "添付しただけでは、教育工程の完了・適合にはなりません" in response.text
     assert _education_issue_count() == before_issue_count
 
-    marker = '/evidence/education/'
+    marker = "/evidence/education/"
     start = response.text.index(marker) + len(marker)
     evidence_id = response.text[start:].split('"', 1)[0]
     download = client.get(f"{marker}{evidence_id}")
