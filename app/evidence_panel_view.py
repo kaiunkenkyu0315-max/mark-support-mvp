@@ -23,15 +23,7 @@ def _format_size(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
-def render_evidence_panel(
-    *,
-    area: str,
-    files: list[EvidenceFile],
-    description: str,
-    canonical_record_text: str,
-    heading: str = "証跡ファイル",
-    completion_scope: str = "この業務工程",
-) -> str:
+def _render_evidence_table(area: str, files: list[EvidenceFile]) -> str:
     area_label = AREA_LABELS.get(area, area)
     if files:
         rows = "".join(
@@ -48,28 +40,48 @@ def render_evidence_panel(
             """
             for item in files
         )
-        existing = f"""
-        <div style="overflow-x:auto;">
-          <table style="border-collapse:collapse;width:100%;min-width:680px;">
-            <thead><tr>
-              <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">対象領域</th>
-              <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">年度</th>
-              <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">登録日</th>
-              <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">ファイル名</th>
-            </tr></thead>
-            <tbody>{rows}</tbody>
-          </table>
-        </div>
-        """
     else:
-        existing = '<p style="color:#666;">添付済みの証跡ファイルはありません。</p>'
+        rows = """
+        <tr>
+          <td colspan="4" style="padding:10px;color:#666;border-bottom:1px solid #ddd;">
+            添付済みの証跡ファイルはありません。
+          </td>
+        </tr>
+        """
+
+    return f"""
+    <div style="overflow-x:auto;">
+      <table style="border-collapse:collapse;width:100%;min-width:680px;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">対象領域</th>
+          <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">年度</th>
+          <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">登録日</th>
+          <th style="text-align:left;padding:6px;border-bottom:2px solid #bbb;">ファイル名</th>
+        </tr></thead>
+        <tbody>{rows}</tbody>
+      </table>
+    </div>
+    """
+
+
+def render_evidence_panel(
+    *,
+    area: str,
+    files: list[EvidenceFile],
+    description: str,
+    canonical_record_text: str,
+    heading: str = "証跡ファイル",
+    completion_subject: str | None = None,
+) -> str:
+    subject = completion_subject or "この業務工程"
+    existing = _render_evidence_table(area, files)
 
     return f"""
     <section class="evidence-panel" style="border:1px solid #ddd; padding:14px; margin:22px 0;">
       <h2 style="margin-top:0;">{escape(heading)}</h2>
       <p>{escape(description)}</p>
       <p style="background:#fff8ef; padding:.7rem 1rem;">
-        <strong>ファイルを添付しただけでは、{escape(completion_scope)}の完了・適合にはなりません。</strong>
+        <strong>ファイルを添付しただけでは、{escape(subject)}の完了・適合にはなりません。</strong>
         {escape(canonical_record_text)}
       </p>
       {existing}
